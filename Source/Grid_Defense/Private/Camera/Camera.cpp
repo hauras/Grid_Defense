@@ -16,7 +16,6 @@ ACamera::ACamera()
     SpringArm->TargetArmLength = 2000.f;
     SpringArm->bDoCollisionTest = false; // 타워/적에 가려져도 카메라 점프 방지
     
-    // 쿼터뷰 각도 설정 (약 50도 정도 숙임)
     SpringArm->SetRelativeRotation(FRotator(-50.f, 0.f, 0.f));
     SpringArm->bInheritPitch = false;
     SpringArm->bInheritYaw = false;
@@ -32,13 +31,6 @@ void ACamera::BeginPlay()
 {
     Super::BeginPlay();
     
-    if (APlayerController* PC = Cast<APlayerController>(GetController()))
-    {
-        if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PC->GetLocalPlayer()))
-        {
-            Subsystem->AddMappingContext(DefaultMappingContext, 0);
-        }
-    }
 }
 
 void ACamera::Tick(float DeltaTime)
@@ -57,10 +49,18 @@ void ACamera::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
     Super::SetupPlayerInputComponent(PlayerInputComponent);
 
+
     if (UEnhancedInputComponent* EnhancedInputComponent = CastChecked<UEnhancedInputComponent>(PlayerInputComponent))
     {
-        EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &ACamera::Move);
-        EnhancedInputComponent->BindAction(ZoomAction, ETriggerEvent::Triggered, this, &ACamera::Zoom);
+        if (MoveAction) 
+        {
+            EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &ACamera::Move);
+        }
+        
+        if (ZoomAction) 
+        {
+            EnhancedInputComponent->BindAction(ZoomAction, ETriggerEvent::Triggered, this, &ACamera::Zoom);
+        }
     }
 }
 

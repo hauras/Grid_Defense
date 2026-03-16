@@ -40,10 +40,14 @@ public:
 	AGridManager();
 
 	FORCEINLINE int32 GetIndex(int32 X, int32 Y) const { return (Y * GridWidth) + X; }
+
+	void AddTower(int32 X, int32 Y);
+
+	bool bIsTileBuildable(int32 X, int32 Y) const;
+	
 protected:
 	virtual void BeginPlay() override;
-
-
+	
 	void GenerateGrid();
 public:
 
@@ -68,6 +72,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Grid")
 	float TileSize;
 
+	UPROPERTY(EditAnywhere, Category = "Tower")
+	TSubclassOf<AActor> TowerClass;
+	
 private:
 	TArray<FGridInfo> GridArray;
 
