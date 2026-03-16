@@ -5,6 +5,8 @@
 #include "GameFramework/PlayerController.h"
 #include "GridController.generated.h"
 
+class ATowerBase;
+class UTowerData;
 class UInputAction;
 class AGridManager;
 /**
@@ -32,20 +34,19 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Input")
 	TObjectPtr<UInputAction> ClickAction;
 
-	UPROPERTY(EditAnywhere, Category = "Input | Build Mode")
-	TSubclassOf<AActor> PreviewTower;
-
 private:
 	UPROPERTY()
-	TObjectPtr<AActor> CurrentPreviewActor;
+	TObjectPtr<ATowerBase> CurrentPreviewActor;
 
 	bool bBuildModeActive = true;
-
 	
-private:
-
 	UPROPERTY()
 	TObjectPtr<AGridManager> GridManager;
 
 	bool GetGridLocationUnderCursor(int32& OutX, int32& OutY);
+
+	UPROPERTY(EditAnywhere, Category = "Tower")
+	TObjectPtr<UTowerData> TowerData;
+
+	void UpdateGhostVisual();
 };

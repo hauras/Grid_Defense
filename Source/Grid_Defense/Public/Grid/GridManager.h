@@ -6,6 +6,8 @@
 #include "Components/InstancedStaticMeshComponent.h"
 #include "GridManager.generated.h"
 
+class UTowerData;
+
 UENUM(BlueprintType)
 enum class ETileType : uint8
 {
@@ -41,7 +43,7 @@ public:
 
 	FORCEINLINE int32 GetIndex(int32 X, int32 Y) const { return (Y * GridWidth) + X; }
 
-	void AddTower(int32 X, int32 Y);
+	void AddTower(int32 X, int32 Y, UTowerData* SelectedData);
 
 	bool bIsTileBuildable(int32 X, int32 Y) const;
 	
