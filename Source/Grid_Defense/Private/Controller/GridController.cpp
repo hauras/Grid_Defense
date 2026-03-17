@@ -61,7 +61,6 @@ void AGridController::CursorTrace()
 	{
 		float TileSize = GridManager->TileSize;
 		
-		// 💡 프리뷰 위치: GridManager::AddTower와 동일한 높이(50.f) 사용
 		FVector GridCenter = GridManager->GetActorLocation() + 
 							 FVector(GridX * TileSize, GridY * TileSize, 50.0f);
 
@@ -112,7 +111,6 @@ bool AGridController::GetGridLocationUnderCursor(int32& OutX, int32& OutY)
 		float TileSize = GridManager->TileSize;
 		float HalfTile = TileSize * 0.5f;
 
-		// 💡 중앙 피벗 메시 대응 판정 로직
 		OutX = FMath::FloorToInt((RelativeLocation.X + HalfTile) / TileSize);
 		OutY = FMath::FloorToInt((RelativeLocation.Y + HalfTile) / TileSize);
 

@@ -28,5 +28,13 @@ protected:
 	TObjectPtr<UTowerData> MyData;
 
 	bool bIsPreviewMode = false;
-	
+
+	UPROPERTY()
+	AActor* CurrentTarget;
+
+	FTimerHandle AttackTimerHandle;
+
+	void FindTarget();
+
+	void Fire();
 };
