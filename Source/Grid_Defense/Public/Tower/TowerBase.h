@@ -21,8 +21,8 @@ protected:
 	UPROPERTY(VisibleAnywhere, Category = "Components")
 	TObjectPtr<UStaticMeshComponent> MeshComponent;
 
-	/*UPROPERTY(VisibleAnywhere, Category = "Components")
-	TObjectPtr<UDecalComponent> RangeDecal;*/
+	UPROPERTY(VisibleAnywhere, Category = "Components")
+	TObjectPtr<UDecalComponent> RangeDecal;
 
 	UPROPERTY()
 	TObjectPtr<UTowerData> MyData;

@@ -55,14 +55,17 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = "Info")
 	float AttackRange = 1000.f;
+
+	UPROPERTY(EditAnywhere, Category = "Info")
+	TObjectPtr<UMaterialInterface> RangeDecalMaterial;
 	
 	UPROPERTY(EditAnywhere, Category = "Info", meta = (EditCondition = "TowerType == ETowerType::AoE", EditConditionHides))
 	float SplashRadius = 300.f;
 
-	UPROPERTY(EditAnywhere, Category = "Visual") // 카테고리 분리 추천
+	UPROPERTY(EditAnywhere, Category = "Info") // 카테고리 분리 추천
 	TObjectPtr<UNiagaraSystem> ExplosionEffect;
 	
-	UPROPERTY(EditAnywhere, Category = "Visual")
+	UPROPERTY(EditAnywhere, Category = "Info")
 	TObjectPtr<UStaticMesh> PreviewMesh;
 
 	UPROPERTY(EditAnywhere, Category = "Status")
