@@ -6,6 +6,8 @@
 #include "GameFramework/Actor.h"
 #include "TowerBase.generated.h"
 
+class AProjectileBase;
+
 UCLASS()
 class GRID_DEFENSE_API ATowerBase : public AActor
 {
@@ -18,6 +20,10 @@ public:
 
 	
 protected:
+
+	UPROPERTY(VisibleAnywhere, Category = "Components")
+	TObjectPtr<USceneComponent> Root;
+	
 	UPROPERTY(VisibleAnywhere, Category = "Components")
 	TObjectPtr<UStaticMeshComponent> MeshComponent;
 
@@ -27,6 +33,8 @@ protected:
 	UPROPERTY()
 	TObjectPtr<UTowerData> MyData;
 
+	UPROPERTY(EditDefaultsOnly, Category = "Tower")
+	TSubclassOf<AProjectileBase> ProjectileClass;
 	bool bIsPreviewMode = false;
 
 	UPROPERTY()
