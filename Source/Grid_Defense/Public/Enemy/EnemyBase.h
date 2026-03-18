@@ -36,18 +36,24 @@ public:
 	virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser) override;
 
 	void Die();
-protected:
-	virtual void BeginPlay() override;
-
+	void InitializeStats();
+	void MoveToTarget(FVector TargetLocation);
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Data")
 	UDataTable* EnemyDataTable;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Data")
 	FName EnemyDataRowName;
 
+	UFUNCTION(BlueprintCallable, Category = "Status")
+	bool IsDead() const { return bIsDead; }
+	
+protected:
+	virtual void BeginPlay() override;
+	
 	float CurrentHP;
-	
-	void InitializeStats();
 
-	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation")
+	TObjectPtr<UAnimMontage> DeathMontage;
+
+	bool bIsDead = false;
 };

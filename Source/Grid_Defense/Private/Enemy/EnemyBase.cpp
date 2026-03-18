@@ -1,8 +1,8 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
 
 #include "Enemy/EnemyBase.h"
 
+#include "AIController.h"
+#include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 
 AEnemyBase::AEnemyBase()
@@ -18,6 +18,7 @@ void AEnemyBase::BeginPlay()
 	InitializeStats();
 }
 
+// 몬스터 스탯 적용
 void AEnemyBase::InitializeStats()
 {
 	if (EnemyDataTable && !EnemyDataRowName.IsNone())
@@ -38,9 +39,23 @@ void AEnemyBase::InitializeStats()
 	}
 }
 
-float AEnemyBase::TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent,
-	class AController* EventInstigator, AActor* DamageCauser)
+// 길 찾기
+void AEnemyBase::MoveToTarget(FVector TargetLocation)
 {
+	AAIController* AIC = Cast<AAIController>(GetController());
+	if (AIC)
+	{
+		AIC->MoveToLocation(TargetLocation);
+	}
+	UE_LOG(LogTemp, Warning, TEXT("목적지로 이동 시도: %s"), *TargetLocation.ToString());
+}
+
+// 데미지 적용
+float AEnemyBase::TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent,
+                             class AController* EventInstigator, AActor* DamageCauser)
+{
+	if (bIsDead) return 0.f;
+	
 	float ActualDamage = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
 
 	CurrentHP -= ActualDamage;
@@ -56,9 +71,24 @@ float AEnemyBase::TakeDamage(float DamageAmount, struct FDamageEvent const& Dama
 
 void AEnemyBase::Die()
 {
-	UE_LOG(LogTemp, Error, TEXT("[%s] 사망했습니다!"), *GetName());
-	// 일단 바로 파괴 (나중에 애니메이션이나 보상 처리 추가)
-	Destroy();
+	if (bIsDead) return; 
+	bIsDead = true;      
+
+	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	GetMesh()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	GetCharacterMovement()->StopMovementImmediately();
+
+	// 💡 애니메이션 길이를 저장할 변수 (기본값은 혹시 모를 에러 방지용 0.1초)
+	float DestroyTime = 0.1f; 
+
+	if (DeathMontage)
+	{
+		// PlayAnimMontage는 재생된 몽타주의 길이를 반환합니다!
+		DestroyTime = PlayAnimMontage(DeathMontage);
+	}
+
+	// 💡 3.0f 대신 애니메이션 길이를 그대로 넣어줍니다.
+	SetLifeSpan(DestroyTime - 0.3f); 
 }
 
 

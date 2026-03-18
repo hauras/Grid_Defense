@@ -5,6 +5,8 @@
 #include "GameFramework/Actor.h"
 #include "ProjectileBase.generated.h"
 
+class UNiagaraComponent;
+class UNiagaraSystem;
 class UProjectileMovementComponent;
 class USphereComponent;
 
@@ -20,10 +22,8 @@ public:
 
 	virtual void FireInDirection(const FVector& ShootDirection);
 
-	// 💡 타겟을 지정하는 발사 함수 (자식인 유도탄 클래스에서 오버라이드할 예정!)
 	virtual void FireAtTarget(AActor* TargetActor);
 
-	// 💡 충돌 시 호출될 가상 함수 (나중에 폭발 이펙트 등을 자식마다 다르게 구현 가능)
 	UFUNCTION()
 	virtual void OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit);
 
@@ -43,5 +43,12 @@ protected:
 
 	float ProjectileDamage;
 
-	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Visual")
+	TObjectPtr<UNiagaraSystem> Projectile;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Visual")
+	TObjectPtr<UNiagaraComponent> ProjectileComponent;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effects")
+	TObjectPtr<UNiagaraSystem> HitEffect;
 };

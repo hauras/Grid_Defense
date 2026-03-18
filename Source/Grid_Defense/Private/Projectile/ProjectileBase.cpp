@@ -5,6 +5,9 @@
 #include "Components/StaticMeshComponent.h"
 #include "GameFramework/ProjectileMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "NiagaraSystem.h"
+#include "NiagaraComponent.h"
+#include "NiagaraFunctionLibrary.h"
 
 AProjectileBase::AProjectileBase()
 {
@@ -30,6 +33,28 @@ AProjectileBase::AProjectileBase()
 	ProjectileMovement->MaxSpeed = 1000.f;
 	ProjectileMovement->bRotationFollowsVelocity = true; // 날아가는 방향 바라보기
 	ProjectileMovement->bShouldBounce = false;
+
+	ProjectileComponent = CreateDefaultSubobject<UNiagaraComponent>(TEXT("ProjectileComponent"));
+	ProjectileComponent->SetupAttachment(RootComponent);
+
+	ProjectileComponent->bAutoActivate = true;
+	
+}
+
+void AProjectileBase::BeginPlay()
+{
+	Super::BeginPlay();
+
+	if (GetOwner())
+	{
+		// 내 충돌체(Collision)가 날아갈 때 주인은 그냥 무시하고 통과해라!
+		Collision->IgnoreActorWhenMoving(GetOwner(), true);
+	}
+
+	if (ProjectileComponent && Projectile)
+	{
+		ProjectileComponent->SetAsset(Projectile);
+	}
 }
 
 void AProjectileBase::SetDamage(float Damage)
@@ -59,29 +84,30 @@ void AProjectileBase::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UP
 {
 	if (OtherActor && OtherActor != this && OtherActor != GetOwner())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("기본 발사체가 [%s]에 적중했습니다!"), *OtherActor->GetName());
-        
 		UGameplayStatics::ApplyDamage(
-			OtherActor,                 // 데미지를 받을 대상 (드래곤)
-			ProjectileDamage,           // 타워에서 받아온 그 데미지 수치!
-			nullptr,                    // 가해자의 컨트롤러 (일단 널로 두어도 됨)
-			this,                       // 가해자 액터 (이 총알)
-			UDamageType::StaticClass()  // 기본 데미지 타입
+		   OtherActor,                 
+		   ProjectileDamage,           
+		   nullptr,                    
+		   this,                       
+		   UDamageType::StaticClass()  
 		);
+
+		// 💡 [추가된 부분] 파괴되기 직전에 현재 위치에 피격 이펙트 소환!
+		// (주의: ProjectileBase.h 에 class UNiagaraSystem* HitEffect; 가 선언되어 있어야 합니다)
+		if (HitEffect)
+		{
+			UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+				GetWorld(),
+				HitEffect,
+				GetActorLocation(), // 총알이 부딪힌 현재 위치
+				GetActorRotation()  // 터지는 방향
+			);
+		}
         
 		// 펑 터졌으니 총알은 파괴!
-		Destroy(); // 적중 시 파괴
+		Destroy(); 
 	}
 }
 
-void AProjectileBase::BeginPlay()
-{
-	Super::BeginPlay();
 
-	if (GetOwner())
-	{
-		// 내 충돌체(Collision)가 날아갈 때 주인은 그냥 무시하고 통과해라!
-		Collision->IgnoreActorWhenMoving(GetOwner(), true);
-	}
-}
 

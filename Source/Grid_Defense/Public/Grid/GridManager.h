@@ -6,6 +6,7 @@
 #include "Components/InstancedStaticMeshComponent.h"
 #include "GridManager.generated.h"
 
+class AEnemySpawner;
 class UTowerData;
 
 UENUM(BlueprintType)
@@ -51,6 +52,11 @@ protected:
 	virtual void BeginPlay() override;
 	
 	void GenerateGrid();
+
+	UPROPERTY(EditAnywhere, Category = " Grid")
+	TSubclassOf<AEnemySpawner> SpawnerClass;
+
+	AEnemySpawner* ActiveSpawner;
 public:
 
 	UPROPERTY(VisibleAnywhere)

@@ -2,6 +2,7 @@
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Engine/World.h" 
 #include "Tower/TowerBase.h"
+#include "Enemy/EnemySpawner.h"
 
 AGridManager::AGridManager()
 {
@@ -69,6 +70,24 @@ void AGridManager::GenerateGrid()
 			case ETileType::Start:    StartISM->AddInstance(TileTransform); break;
 			case ETileType::End:      EndISM->AddInstance(TileTransform); break;
 			}
+		}
+	}
+
+	if (SpawnerClass)
+	{
+		FVector StartLoc = GridArray[GetIndex(0, 0)].WorldPosition;
+		StartLoc.Z += 55.f;
+
+		FActorSpawnParameters SpawnParams;
+		SpawnParams.Owner = this;
+
+		ActiveSpawner = GetWorld()->SpawnActor<AEnemySpawner>(SpawnerClass, StartLoc, FRotator::ZeroRotator, SpawnParams);
+
+		if (ActiveSpawner)
+		{
+			FVector EndLoc = GridArray[GetIndex(GridWidth - 1, GridHeight - 1)].WorldPosition;
+
+			ActiveSpawner->SetTargetLocation(EndLoc);
 		}
 	}
 }
