@@ -3,19 +3,38 @@
 
 #include "AIController.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/WidgetComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "UI/Widget/EnemyHPWidget.h"
 
 AEnemyBase::AEnemyBase()
 {
 	PrimaryActorTick.bCanEverTick = false;
 
+	HPBarWidget = CreateDefaultSubobject<UWidgetComponent>(TEXT("HPBarWidget"));
+	HPBarWidget->SetupAttachment(RootComponent);
+	HPBarWidget->SetRelativeLocation(FVector(0.f, 0.f, 100.f)); // 머리 위로 100만큼 올리기
+	HPBarWidget->SetWidgetSpace(EWidgetSpace::Screen);
 }
 
 void AEnemyBase::BeginPlay()
 {
 	Super::BeginPlay();
-
 	InitializeStats();
+
+	// 1. 위젯 컴포넌트에서 실제 위젯 객체 가져오기
+	if (HPBarWidget)
+	{
+		UEnemyHPWidget* HPWidget = Cast<UEnemyHPWidget>(HPBarWidget->GetUserWidgetObject());
+		if (HPWidget)
+		{
+			// 2. 캐릭터의 델리게이트와 위젯의 함수를 연결 (Binding)
+			OnHPChanged.AddDynamic(HPWidget, &UEnemyHPWidget::OnHPChanged);
+            
+			// 3. 초기화 (위젯이 생성될 때 현재 체력을 한 번 전달)
+			HPWidget->UpdateHP(CurrentHP, MaxHP);
+		}
+	}
 }
 
 // 몬스터 스탯 적용
@@ -26,7 +45,8 @@ void AEnemyBase::InitializeStats()
 		FEnemyData* Data = EnemyDataTable->FindRow<FEnemyData>(EnemyDataRowName, TEXT(""));
 		if (Data)
 		{
-			CurrentHP = Data->MaxHP;
+			MaxHP = Data->MaxHP;       // 데이터 테이블의 100, 200, 500 등 드래곤 종류에 맞는 체력 세팅!
+			CurrentHP = MaxHP;
 
 			GetCharacterMovement()->MaxWalkSpeed = Data->MoveSpeed;
 
@@ -34,7 +54,6 @@ void AEnemyBase::InitializeStats()
 			{
 				GetMesh()->SetSkeletalMesh(Data->EnemyMesh);
 			}
-			UE_LOG(LogTemp, Warning, TEXT("[%s] 로드 완료! HP: %f"), *EnemyDataRowName.ToString(), CurrentHP);
 		}
 	}
 }
@@ -47,7 +66,6 @@ void AEnemyBase::MoveToTarget(FVector TargetLocation)
 	{
 		AIC->MoveToLocation(TargetLocation);
 	}
-	UE_LOG(LogTemp, Warning, TEXT("목적지로 이동 시도: %s"), *TargetLocation.ToString());
 }
 
 // 데미지 적용
@@ -61,6 +79,7 @@ float AEnemyBase::TakeDamage(float DamageAmount, struct FDamageEvent const& Dama
 	CurrentHP -= ActualDamage;
 	UE_LOG(LogTemp, Warning, TEXT("[%s] 남은 체력: %f"), *GetName(), CurrentHP);
 
+	OnHPChanged.Broadcast(CurrentHP, MaxHP);
 	if (CurrentHP <= 0.f)
 	{
 		Die();
@@ -74,20 +93,22 @@ void AEnemyBase::Die()
 	if (bIsDead) return; 
 	bIsDead = true;      
 
+	if (HPBarWidget)
+	{
+		HPBarWidget->SetVisibility(false);
+	}
+	
 	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	GetMesh()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	GetCharacterMovement()->StopMovementImmediately();
 
-	// 💡 애니메이션 길이를 저장할 변수 (기본값은 혹시 모를 에러 방지용 0.1초)
 	float DestroyTime = 0.1f; 
 
 	if (DeathMontage)
 	{
-		// PlayAnimMontage는 재생된 몽타주의 길이를 반환합니다!
 		DestroyTime = PlayAnimMontage(DeathMontage);
 	}
 
-	// 💡 3.0f 대신 애니메이션 길이를 그대로 넣어줍니다.
 	SetLifeSpan(DestroyTime - 0.3f); 
 }
 

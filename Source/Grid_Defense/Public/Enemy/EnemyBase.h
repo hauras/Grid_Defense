@@ -6,6 +6,9 @@
 #include "Engine/DataTable.h" // 필수!
 #include "EnemyBase.generated.h"
 
+class UWidgetComponent;
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnHPChangedDelegate, float, CurrentHP, float, MaxHP);
+
 USTRUCT(BlueprintType)
 struct FEnemyData : public FTableRowBase
 {
@@ -21,8 +24,7 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Visual")
 	USkeletalMesh* EnemyMesh;
-    
-	// 필요하다면 공격력이나 보상 골드도 추가하세요!
+	
 };
 
 UCLASS()
@@ -38,6 +40,7 @@ public:
 	void Die();
 	void InitializeStats();
 	void MoveToTarget(FVector TargetLocation);
+	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Data")
 	UDataTable* EnemyDataTable;
 
@@ -46,12 +49,19 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Status")
 	bool IsDead() const { return bIsDead; }
+
+	UPROPERTY(BlueprintAssignable, Category = "Events")
+	FOnHPChangedDelegate OnHPChanged;
 	
 protected:
 	virtual void BeginPlay() override;
 	
 	float CurrentHP;
+	float MaxHP;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "UI")
+	TObjectPtr<UWidgetComponent> HPBarWidget;
+	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation")
 	TObjectPtr<UAnimMontage> DeathMontage;
 
