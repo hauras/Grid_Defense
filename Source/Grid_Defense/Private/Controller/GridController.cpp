@@ -59,20 +59,25 @@ void AGridController::CursorTrace()
 	int32 GridX, GridY;
 	if (GetGridLocationUnderCursor(GridX, GridY))
 	{
-		float TileSize = GridManager->TileSize;
-		
+		// 💡 수정 1: 직접 변수에 접근하지 말고 Getter 함수를 호출하세요!
+		float TileSize = GridManager->GetTileSize(); 
+    
+		// 💡 수정 2: 격자 중심 좌표 계산
+		// (보통 그리드 매니저의 위치가 0,0 타일의 중심이라고 가정할 때의 계산식입니다)
 		FVector GridCenter = GridManager->GetActorLocation() + 
-							 FVector(GridX * TileSize, GridY * TileSize, 50.0f);
+						FVector(GridX * TileSize, GridY * TileSize, 50.0f);
 
 		if (!CurrentPreviewActor)
 		{
 			FActorSpawnParameters SpawnParams;
 			SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+       
+			// 타워 데이터에서 클래스 정보 가져와서 스폰
 			CurrentPreviewActor = GetWorld()->SpawnActor<ATowerBase>(TowerData->TowerActorClass, GridCenter, FRotator::ZeroRotator, SpawnParams);
-			
+       
 			if (CurrentPreviewActor)
 			{
-				CurrentPreviewActor->InitTower(TowerData, true);
+				CurrentPreviewActor->InitTower(TowerData, true); // 유령 모드로 초기화
 			}
 		}
 		else
@@ -106,15 +111,20 @@ bool AGridController::GetGridLocationUnderCursor(int32& OutX, int32& OutY)
 	FHitResult CursorHit;
 	if (GetHitResultUnderCursor(ECC_Visibility, true, CursorHit))
 	{
+		// 1. 그리드 매니저의 위치로부터 얼마나 떨어졌나 계산
 		FVector RelativeLocation = CursorHit.ImpactPoint - GridManager->GetActorLocation();
-		
-		float TileSize = GridManager->TileSize;
+       
+		// 💡 수정 포인트: 변수에 직접 접근하지 말고 Getter 함수를 호출하세요!
+		float TileSize = GridManager->GetTileSize(); // 이 Getter를 GridManager에 추가해야겠네요!
 		float HalfTile = TileSize * 0.5f;
 
+		// 2. 상대 좌표를 타일 인덱스(X, Y)로 변환
 		OutX = FMath::FloorToInt((RelativeLocation.X + HalfTile) / TileSize);
 		OutY = FMath::FloorToInt((RelativeLocation.Y + HalfTile) / TileSize);
 
-		return (OutX >= 0 && OutX < GridManager->GridWidth && OutY >= 0 && OutY < GridManager->GridHeight);
+		// 💡 수정 포인트: Width와 Height도 Getter를 통해서 가져옵니다!
+		return (OutX >= 0 && OutX < GridManager->GetGridWidth() && 
+				OutY >= 0 && OutY < GridManager->GetGridHeight());
 	}
 	return false;
 }

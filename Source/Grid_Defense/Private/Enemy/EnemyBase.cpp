@@ -5,11 +5,14 @@
 #include "Components/CapsuleComponent.h"
 #include "Components/WidgetComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "GameMode/GridGameMode.h"
+#include "Grid/GridManager.h"
+#include "Kismet/GameplayStatics.h"
 #include "UI/Widget/EnemyHPWidget.h"
 
 AEnemyBase::AEnemyBase()
 {
-	PrimaryActorTick.bCanEverTick = false;
+	PrimaryActorTick.bCanEverTick = true;
 
 	HPBarWidget = CreateDefaultSubobject<UWidgetComponent>(TEXT("HPBarWidget"));
 	HPBarWidget->SetupAttachment(RootComponent);
@@ -17,23 +20,55 @@ AEnemyBase::AEnemyBase()
 	HPBarWidget->SetWidgetSpace(EWidgetSpace::Screen);
 }
 
+void AEnemyBase::InitializeEnemy(FName InRowName)
+{
+	EnemyDataRowName = InRowName; // 내 이름표 내가 달기
+	InitializeStats();
+}
+
 void AEnemyBase::BeginPlay()
 {
 	Super::BeginPlay();
 	InitializeStats();
 
-	// 1. 위젯 컴포넌트에서 실제 위젯 객체 가져오기
 	if (HPBarWidget)
 	{
 		UEnemyHPWidget* HPWidget = Cast<UEnemyHPWidget>(HPBarWidget->GetUserWidgetObject());
 		if (HPWidget)
 		{
-			// 2. 캐릭터의 델리게이트와 위젯의 함수를 연결 (Binding)
 			OnHPChanged.AddDynamic(HPWidget, &UEnemyHPWidget::OnHPChanged);
             
-			// 3. 초기화 (위젯이 생성될 때 현재 체력을 한 번 전달)
 			HPWidget->UpdateHP(CurrentHP, MaxHP);
 		}
+	}
+}
+
+void AEnemyBase::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	if (bIsDead || Waypoints.Num() == 0) return;
+
+	FVector TargetLocation = Waypoints[CurrentIndex];
+
+	FVector MyLocation = GetActorLocation();
+	TargetLocation.Z = MyLocation.Z;
+
+	float DistanceToTarget = FVector::Distance(TargetLocation, MyLocation);
+	if (DistanceToTarget < 10.0f)
+	{
+		CurrentIndex++;
+
+		if (CurrentIndex >= Waypoints.Num())
+		{
+			Waypoints.Empty();
+			return;
+		}
+	}
+	else
+	{
+		FVector Direction = (TargetLocation - MyLocation).GetSafeNormal();
+		AddMovementInput(Direction, 1.0f);
 	}
 }
 
@@ -45,7 +80,7 @@ void AEnemyBase::InitializeStats()
 		FEnemyData* Data = EnemyDataTable->FindRow<FEnemyData>(EnemyDataRowName, TEXT(""));
 		if (Data)
 		{
-			MaxHP = Data->MaxHP;       // 데이터 테이블의 100, 200, 500 등 드래곤 종류에 맞는 체력 세팅!
+			MaxHP = Data->MaxHP;       
 			CurrentHP = MaxHP;
 
 			GetCharacterMovement()->MaxWalkSpeed = Data->MoveSpeed;
@@ -58,13 +93,51 @@ void AEnemyBase::InitializeStats()
 	}
 }
 
-// 길 찾기
-void AEnemyBase::MoveToTarget(FVector TargetLocation)
+void AEnemyBase::SetPath(const TArray<FVector>& NewPath)
 {
-	AAIController* AIC = Cast<AAIController>(GetController());
-	if (AIC)
+	Waypoints = NewPath;
+	CurrentIndex = 0;
+}
+
+void AEnemyBase::RecalculatePath()
+{
+	// 1. GridManager 찾기
+	AGridManager* GridManager = Cast<AGridManager>(UGameplayStatics::GetActorOfClass(GetWorld(), AGridManager::StaticClass()));
+	if (!GridManager) return;
+
+	// 2. 내 현재 위치를 가져오기
+	FVector MyLoc = GetActorLocation();
+    
+	// 그리드 매니저의 시작점으로부터 상대적인 거리 계산
+	FVector RelativeLoc = MyLoc - GridManager->GetActorLocation();
+	float TileSize = GridManager->GetTileSize();
+
+	// 💡 [중요] MyTile 변수를 선언함과 동시에 계산된 값을 넣어줍니다 (C4700 해결!)
+	FIntPoint MyTile;
+	MyTile.X = FMath::FloorToInt((RelativeLoc.X + (TileSize * 0.5f)) / TileSize);
+	MyTile.Y = FMath::FloorToInt((RelativeLoc.Y + (TileSize * 0.5f)) / TileSize);
+
+	// 3. 목적지(넥서스) 좌표 설정
+	int32 EndX = GridManager->GetGridWidth() - 1;
+	int32 EndY = GridManager->GetGridHeight() - 1;
+
+	// 4. 새로운 길 찾기 수행
+	TArray<FIntPoint> NewGridPath;
+    
+	// 내 현재 타일 위치(MyTile)에서 넥서스까지 다시 길을 찾습니다.
+	if (GridManager->FindPath(MyTile.X, MyTile.Y, EndX, EndY, NewGridPath))
 	{
-		AIC->MoveToLocation(TargetLocation);
+		TArray<FVector> NewWorldPath;
+		for (FIntPoint Node : NewGridPath)
+		{
+			FVector Pos = GridManager->GetTileWorldPosition(Node.X, Node.Y);
+			// 몬스터가 공중에 뜨거나 땅에 박히지 않게 현재 높이(Z) 유지
+			Pos.Z = MyLoc.Z; 
+			NewWorldPath.Add(Pos);
+		}
+
+		// 5. 새 수첩으로 교체!
+		SetPath(NewWorldPath);
 	}
 }
 
@@ -93,6 +166,12 @@ void AEnemyBase::Die()
 	if (bIsDead) return; 
 	bIsDead = true;      
 
+	AGridGameMode* GM = Cast<AGridGameMode>(UGameplayStatics::GetGameMode(GetWorld()));
+	if (GM)
+	{
+		GM->AddGold(10);
+	}
+	SetActorEnableCollision(false);
 	if (HPBarWidget)
 	{
 		HPBarWidget->SetVisibility(false);
