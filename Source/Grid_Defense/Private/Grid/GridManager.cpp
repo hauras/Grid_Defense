@@ -93,8 +93,7 @@ void AGridManager::GenerateGrid()
 	if (SpawnerClass)
 	{
 		FVector StartLoc = GridArray[GetIndex(0, 0)].WorldPosition;
-		StartLoc.Z += 55.f;
-
+		StartLoc.Z += 500.f; 
 		FActorSpawnParameters SpawnParams;
 		SpawnParams.Owner = this;
 

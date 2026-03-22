@@ -16,7 +16,7 @@ ATowerBase::ATowerBase()
 	MeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MeshComponent"));
 	MeshComponent->SetupAttachment(Root);
 	
-	RangeDecal = CreateDefaultSubobject<UDecalComponent>(TEXT("RangeDecal"));
+	RangeDecal = CreateDefaultSubobject<UDecalComponent>(TEXT("RangeDecal")); 
 	RangeDecal->SetupAttachment(RootComponent);
 	RangeDecal->SetRelativeRotation(FRotator(-90.f, 0.f, 0.f));
 	RangeDecal->SetVisibility(false); 
@@ -37,15 +37,19 @@ void ATowerBase::InitTower(UTowerData* TowerData, bool bIsPreview)
 	// 2. 사거리 표시 
 	if (RangeDecal)
 	{
-		float Radius = MyData->AttackRange; 
-		RangeDecal->DecalSize = FVector(100.0f, Radius, Radius);
+		float CurrentScale = GetActorScale3D().X; 
+		
+		// 보정치 추가
+		float DecalMultiplier = 3.5f; 
+    
+		float AdjustedRadius = (MyData->AttackRange / CurrentScale) * DecalMultiplier;
+
+		RangeDecal->DecalSize = FVector(2000.0f, AdjustedRadius, AdjustedRadius);
 
 		if (MyData->RangeDecalMaterial)
 		{
 			RangeDecal->SetDecalMaterial(MyData->RangeDecalMaterial);
 		}
-
-		// 프리뷰 모드일 때만 사거리를 보여줌
 		RangeDecal->SetVisibility(bIsPreviewMode);
 	}
 
@@ -71,53 +75,70 @@ void ATowerBase::InitTower(UTowerData* TowerData, bool bIsPreview)
 
 void ATowerBase::FindTarget()
 {
-	if (!MyData) return;
-
-	if (CurrentTarget)
-	{
-		float Distance = FVector::Dist(GetActorLocation(), CurrentTarget->GetActorLocation());
-		if (Distance <= MyData->AttackRange)
-		{
-			Fire();
-			return;
-		}
-		else
-		{
-			CurrentTarget = nullptr;
-		}
-	}
-
-	TArray<AActor*> OverlappedActors;
-	TArray<AActor*> ActorsToIgnore;
-	ActorsToIgnore.Add(this);
-
-	TArray<TEnumAsByte<EObjectTypeQuery>> ObjectTypes;
-	ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_Pawn));
-
-	bool bHit = UKismetSystemLibrary::SphereOverlapActors(
-		this,
-		GetActorLocation(),
-		MyData->AttackRange,
-		ObjectTypes,
-		AActor::StaticClass(),
-		ActorsToIgnore,
-		OverlappedActors
-		);
-
-	if (bHit && OverlappedActors.Num() > 0)
-	{
-		for (AActor* Actor : OverlappedActors)
-		{
-			AEnemyBase* Enemy = Cast<AEnemyBase>(Actor);
+    if (!MyData) return;
+	
+    if (CurrentTarget)
+    {
+        AEnemyBase* EnemyTarget = Cast<AEnemyBase>(CurrentTarget);
+        
+        // 타겟이 이미 죽었으면 타겟 초기화
+        if (!EnemyTarget || EnemyTarget->IsDead())
+        {
+            CurrentTarget = nullptr;
+        }
+        else
+        {
             
-			if (Enemy && !Enemy->IsDead()) 
-			{
-				CurrentTarget = Enemy; 
-				Fire();               
-				break;                
-			}
-		}
-	}
+            float Distance2D = FVector::Dist2D(GetActorLocation(), CurrentTarget->GetActorLocation());
+            
+            if (Distance2D <= MyData->AttackRange)
+            {
+                Fire();
+                return;
+            }
+            else
+            {
+                CurrentTarget = nullptr;
+            }
+        }
+    }
+
+   // 새로운 타겟 찾기
+    FVector SearchLocation = GetActorLocation();
+    SearchLocation.Z = 0.0f; 
+
+    TArray<AActor*> OverlappedActors;
+    TArray<AActor*> ActorsToIgnore;
+    ActorsToIgnore.Add(this);
+
+    TArray<TEnumAsByte<EObjectTypeQuery>> ObjectTypes;
+    ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_Pawn));
+
+    bool bHit = UKismetSystemLibrary::SphereOverlapActors(
+       this,
+       SearchLocation,
+       MyData->AttackRange,
+       ObjectTypes,
+       AActor::StaticClass(),
+       ActorsToIgnore,
+       OverlappedActors
+    );
+
+    if (bHit && OverlappedActors.Num() > 0)
+    {
+       for (AActor* Actor : OverlappedActors)
+       {
+          AEnemyBase* Enemy = Cast<AEnemyBase>(Actor);
+            
+          if (Enemy && !Enemy->IsDead()) 
+          {
+          	
+             CurrentTarget = Enemy; 
+             Fire();               
+             break;                
+          }
+       }
+    }
 }
 
 void ATowerBase::Fire()

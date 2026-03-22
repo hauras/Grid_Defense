@@ -18,7 +18,7 @@ public:
     float MaxHP = 100.f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat")
-    float MoveSpeed = 300.f;
+    float MoveSpeed = 800.f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Visual")
     USkeletalMesh* EnemyMesh;

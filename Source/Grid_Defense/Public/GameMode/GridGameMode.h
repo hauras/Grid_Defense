@@ -28,12 +28,16 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Economy")
 	void DecreaseLife(int32 Damage);
 
+	UFUNCTION(BlueprintCallable, Category = "Economy")
+	int32 GetCurrentGold() const { return CurrentGold; }
+	
 	UPROPERTY(BlueprintAssignable, Category = "Events")
 	FOnGoldChangedDelegate OnGoldChanged;
 
 	UPROPERTY(BlueprintAssignable, Category = "Events")
 	FOnLifeChangedDelegate OnLifeChanged;
 
+	
 protected:
 	virtual void BeginPlay() override;
 

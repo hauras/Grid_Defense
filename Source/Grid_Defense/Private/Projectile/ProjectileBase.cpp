@@ -12,28 +12,26 @@
 AProjectileBase::AProjectileBase()
 {
 	PrimaryActorTick.bCanEverTick = false;
-	ProjectileDamage = 0.0f; // 기본 데미지
+	ProjectileDamage = 0.0f;
 
-	// 1. 충돌체 세팅
 	Collision = CreateDefaultSubobject<USphereComponent>(TEXT("SphereComp"));
 	Collision->InitSphereRadius(15.0f);
 	Collision->SetCollisionProfileName(TEXT("BlockAllDynamic"));
 	Collision->OnComponentHit.AddDynamic(this, &AProjectileBase::OnHit);
 	RootComponent = Collision;
 
-	// 2. 외형 세팅
 	MeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MeshComponent"));
 	MeshComponent->SetupAttachment(RootComponent);
-	MeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision); // 충돌은 CollisionComp가 담당
+	MeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision); 
 
-	// 3. 움직임 세팅 (순수 직선 비행)
 	ProjectileMovement = CreateDefaultSubobject<UProjectileMovementComponent>(TEXT("ProjectileMovement"));
 	ProjectileMovement->UpdatedComponent = Collision;
 	ProjectileMovement->InitialSpeed = 1000.f;
 	ProjectileMovement->MaxSpeed = 1000.f;
-	ProjectileMovement->bRotationFollowsVelocity = true; // 날아가는 방향 바라보기
+	ProjectileMovement->bRotationFollowsVelocity = true; 
 	ProjectileMovement->bShouldBounce = false;
-
+	ProjectileMovement->ProjectileGravityScale = 0.0f;
+	
 	ProjectileComponent = CreateDefaultSubobject<UNiagaraComponent>(TEXT("ProjectileComponent"));
 	ProjectileComponent->SetupAttachment(RootComponent);
 
@@ -47,7 +45,6 @@ void AProjectileBase::BeginPlay()
 
 	if (GetOwner())
 	{
-		// 내 충돌체(Collision)가 날아갈 때 주인은 그냥 무시하고 통과해라!
 		Collision->IgnoreActorWhenMoving(GetOwner(), true);
 	}
 
@@ -55,6 +52,8 @@ void AProjectileBase::BeginPlay()
 	{
 		ProjectileComponent->SetAsset(Projectile);
 	}
+
+	
 }
 
 void AProjectileBase::SetDamage(float Damage)

@@ -57,8 +57,7 @@ class GRID_DEFENSE_API AGridManager : public AActor
 public: 
     AGridManager();
 
-    // =====================================
-    // 🟢 [Public] 외부에서 자유롭게 쓰는 창구
+ 
     // =====================================
     FORCEINLINE int32 GetIndex(int32 X, int32 Y) const { return (Y * GridWidth) + X; }
     void AddTower(int32 X, int32 Y, UTowerData* SelectedData);
@@ -75,8 +74,6 @@ protected:
     void GenerateGrid();
 
     // =====================================
-    // 🟡 [Protected] 자식 클래스나 언리얼 에디터 설정용
-    // =====================================
     UPROPERTY(EditAnywhere, Category = "Grid")
     TSubclassOf<AEnemySpawner> SpawnerClass;
 
@@ -87,7 +84,6 @@ protected:
 
 private:
     // =====================================
-    // 🔴 [Private] 나만 쓰는 변수와 함수들 (철통 보안)
     // =====================================
     TArray<FGridInfo> GridArray;
 
@@ -108,7 +104,6 @@ private:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
     UInstancedStaticMeshComponent* EndISM;
 
-    // 핵심 데이터 숨기기 (에디터에선 값 수정 가능, 외부 C++ 코드에선 접근 불가!)
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Grid", meta = (AllowPrivateAccess = "true"))
     int32 GridWidth;
 
