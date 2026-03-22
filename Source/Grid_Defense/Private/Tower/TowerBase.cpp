@@ -6,6 +6,7 @@
 #include "Projectile/ProjectileBase.h"
 #include "Enemy/EnemyBase.h"
 #include "Kismet/KismetSystemLibrary.h" 
+#include "Projectile/SplashProjectile.h"
 
 ATowerBase::ATowerBase()
 {
@@ -143,31 +144,44 @@ void ATowerBase::FindTarget()
 
 void ATowerBase::Fire()
 {
-	AEnemyBase* EnemyTarget = Cast<AEnemyBase>(CurrentTarget);
-	
-	if (!EnemyTarget || EnemyTarget->IsDead())
+	if (!CurrentTarget || !MyData) return;
+
+	// 1. 소환 위치/회전 계산
+	FVector SpawnLocation = MeshComponent->GetSocketLocation(TEXT("Fire_Socket"));
+	FRotator SpawnRotation = MeshComponent->GetSocketRotation(TEXT("Fire_Socket"));
+
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.Owner = this;
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+	// 2. 투사체 소환
+	AProjectileBase* Projectile = GetWorld()->SpawnActor<AProjectileBase>(ProjectileClass, SpawnLocation, SpawnRotation, SpawnParams);
+
+	if (Projectile)
 	{
-		CurrentTarget = nullptr;
-		return;
-	}
-
-	DrawDebugLine(GetWorld(), GetActorLocation(), CurrentTarget->GetActorLocation(), FColor::Red, false, 0.5f, 0, 5.0f);
-
-	if (ProjectileClass)
-	{
-		FVector SpawnLocation = MeshComponent->GetSocketLocation(TEXT("Fire_Socket"));
-		FRotator SpawnRotation = MeshComponent->GetSocketRotation(TEXT("Fire_Socket"));
-
-		FActorSpawnParameters SpawnParams;
-		SpawnParams.Owner = this;
-
-		AProjectileBase* Projectile = GetWorld()->SpawnActor<AProjectileBase>(ProjectileClass, SpawnLocation, SpawnRotation, SpawnParams);
-
-		if (Projectile)
+		// 3. 💡 TowerData의 'TowerType'에 따라 투사체 세팅을 다르게 함
+		switch (MyData->TowerType)
 		{
+		case ETowerType::SingleTarget:
+			// 일반 타워: 데미지만 전달
 			Projectile->SetDamage(MyData->Damage);
+			break;
 
-			Projectile->FireAtTarget(CurrentTarget);
+		case ETowerType::AoE:
+			// 광역 타워: 캐스팅 후 SplashRadius까지 전달
+			if (ASplashProjectile* SplashProj = Cast<ASplashProjectile>(Projectile))
+			{
+				SplashProj->InitSplash(MyData->SplashRadius, MyData->Damage);
+			}
+			break;
+
+		case ETowerType::Chain:
+			// TODO: 나중에 체인 타워 로직 추가 (예: 전이 횟수 등)
+			Projectile->SetDamage(MyData->Damage);
+			break;
 		}
+
+		// 4. 발사!
+		Projectile->FireAtTarget(CurrentTarget);
 	}
 }

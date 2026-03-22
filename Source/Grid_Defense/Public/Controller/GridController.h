@@ -28,12 +28,19 @@ protected:
 	
 	void OnMouseClick();
 
+	UFUNCTION(BlueprintCallable, Category = "Build")
+	void SetSelectedTower(UTowerData* NewData);
+	
 	UPROPERTY(EditAnywhere, Category = "Input")
 	TObjectPtr<class UInputMappingContext> DefaultMappingContext;
 	
 	UPROPERTY(EditAnywhere, Category = "Input")
 	TObjectPtr<UInputAction> ClickAction;
-
+	
+	void OnKey1Pressed();
+	void OnKey2Pressed();
+	void OnKey3Pressed();
+	
 private:
 	UPROPERTY()
 	TObjectPtr<ATowerBase> CurrentPreviewActor;
@@ -46,7 +53,10 @@ private:
 	bool GetGridLocationUnderCursor(int32& OutX, int32& OutY);
 
 	UPROPERTY(EditAnywhere, Category = "Tower")
-	TObjectPtr<UTowerData> TowerData;
+	TArray<TObjectPtr<UTowerData>> TowerData;
 
+	UPROPERTY()
+	UTowerData* SelectedTowerData;
+	
 	void UpdateGhostVisual();
 };

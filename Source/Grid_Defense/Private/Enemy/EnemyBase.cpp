@@ -18,6 +18,10 @@ AEnemyBase::AEnemyBase()
 	HPBarWidget->SetupAttachment(RootComponent);
 	HPBarWidget->SetRelativeLocation(FVector(0.f, 0.f, 100.f)); // 머리 위로 100만큼 올리기
 	HPBarWidget->SetWidgetSpace(EWidgetSpace::Screen);
+	if (GetCapsuleComponent())
+	{
+		GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
+	}
 }
 
 void AEnemyBase::InitializeEnemy(FName InRowName)
@@ -101,42 +105,33 @@ void AEnemyBase::SetPath(const TArray<FVector>& NewPath)
 
 void AEnemyBase::RecalculatePath()
 {
-	// 1. GridManager 찾기
 	AGridManager* GridManager = Cast<AGridManager>(UGameplayStatics::GetActorOfClass(GetWorld(), AGridManager::StaticClass()));
 	if (!GridManager) return;
 
-	// 2. 내 현재 위치를 가져오기
 	FVector MyLoc = GetActorLocation();
     
-	// 그리드 매니저의 시작점으로부터 상대적인 거리 계산
 	FVector RelativeLoc = MyLoc - GridManager->GetActorLocation();
 	float TileSize = GridManager->GetTileSize();
 
-	// 💡 [중요] MyTile 변수를 선언함과 동시에 계산된 값을 넣어줍니다 (C4700 해결!)
 	FIntPoint MyTile;
 	MyTile.X = FMath::FloorToInt((RelativeLoc.X + (TileSize * 0.5f)) / TileSize);
 	MyTile.Y = FMath::FloorToInt((RelativeLoc.Y + (TileSize * 0.5f)) / TileSize);
 
-	// 3. 목적지(넥서스) 좌표 설정
 	int32 EndX = GridManager->GetGridWidth() - 1;
 	int32 EndY = GridManager->GetGridHeight() - 1;
 
-	// 4. 새로운 길 찾기 수행
 	TArray<FIntPoint> NewGridPath;
     
-	// 내 현재 타일 위치(MyTile)에서 넥서스까지 다시 길을 찾습니다.
 	if (GridManager->FindPath(MyTile.X, MyTile.Y, EndX, EndY, NewGridPath))
 	{
 		TArray<FVector> NewWorldPath;
 		for (FIntPoint Node : NewGridPath)
 		{
 			FVector Pos = GridManager->GetTileWorldPosition(Node.X, Node.Y);
-			// 몬스터가 공중에 뜨거나 땅에 박히지 않게 현재 높이(Z) 유지
 			Pos.Z = MyLoc.Z; 
 			NewWorldPath.Add(Pos);
 		}
 
-		// 5. 새 수첩으로 교체!
 		SetPath(NewWorldPath);
 	}
 }

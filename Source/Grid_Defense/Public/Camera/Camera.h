@@ -45,13 +45,13 @@ protected:
 
 	// 카메라 설정
 	UPROPERTY(EditAnywhere, Category = "Camera Settings")
-	float ZoomSpeed = 100.f;
+	float ZoomSpeed = 500.f;
 
 	UPROPERTY(EditAnywhere, Category = "Camera Settings")
 	float MinZoom = 500.f;
 
 	UPROPERTY(EditAnywhere, Category = "Camera Settings")
-	float MaxZoom = 3000.f;
+	float MaxZoom = 8000.f;
 
 	UPROPERTY(EditAnywhere, Category = "Camera Settings")
 	float MoveSpeed = 1500.f;

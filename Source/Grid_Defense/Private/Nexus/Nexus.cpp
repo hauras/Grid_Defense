@@ -7,7 +7,6 @@
 #include "GameMode/GridGameMode.h"
 #include "Kismet/GameplayStatics.h"
 
-// Sets default values
 ANexus::ANexus()
 {
 	PrimaryActorTick.bCanEverTick = false;

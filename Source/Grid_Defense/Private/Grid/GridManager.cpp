@@ -110,7 +110,7 @@ void AGridManager::GenerateGrid()
 	if (NexusClass)
 	{
 		FVector NexusLoc = GridArray[GetIndex(GridWidth - 1, GridHeight - 1)].WorldPosition;
-		NexusLoc.Z += 55.f;
+		NexusLoc.Z += 500.f;
 
 		ANexus* SpawnedNexus = GetWorld()->SpawnActor<ANexus>(NexusClass, NexusLoc, FRotator::ZeroRotator);
 	}
@@ -180,11 +180,7 @@ void AGridManager::AddTower(int32 X, int32 Y, UTowerData* SelectedData)
 	}
 
 	GridArray[Index].TileType = ETileType::Tower;
-	GridArray[Index].bIsWalkable = false; // 이제 진짜로 못 지나가는 길이 됨!
-
-	// ========================================================
-	// 💡 [추가 로직] 필드의 모든 몬스터에게 경로 재설정 명령 내리기
-	// ========================================================
+	GridArray[Index].bIsWalkable = false; 
 
 	// 3. 월드에 있는 모든 EnemyBase 클래스를 찾습니다.
 	TArray<AActor*> FoundEnemies;

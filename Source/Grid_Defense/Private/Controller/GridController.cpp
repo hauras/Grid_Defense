@@ -42,15 +42,22 @@ void AGridController::PlayerTick(float DeltaTime)
 void AGridController::SetupInputComponent()
 {
 	Super::SetupInputComponent();
+	
 	if (UEnhancedInputComponent* EnhancedInputComponent = CastChecked<UEnhancedInputComponent>(InputComponent))
 	{
 		EnhancedInputComponent->BindAction(ClickAction, ETriggerEvent::Started, this, &AGridController::OnMouseClick);
 	}
+
+	// 💡 추가: 숫자키 직접 바인딩 (간편한 방법)
+	InputComponent->BindKey(EKeys::One, IE_Pressed, this, &AGridController::OnKey1Pressed);
+	InputComponent->BindKey(EKeys::Two, IE_Pressed, this, &AGridController::OnKey2Pressed);
+	InputComponent->BindKey(EKeys::Three, IE_Pressed, this, &AGridController::OnKey3Pressed);
 }
 
 void AGridController::CursorTrace()
 {
-	if (!GridManager || !TowerData || !bBuildModeActive) 
+	// 💡 수정: TowerData(배열)가 아니라 SelectedTowerData(선택된 하나)가 있는지 체크
+	if (!GridManager || !SelectedTowerData || !bBuildModeActive) 
 	{
 		if (CurrentPreviewActor) CurrentPreviewActor->SetActorHiddenInGame(true);
 		return;
@@ -59,11 +66,7 @@ void AGridController::CursorTrace()
 	int32 GridX, GridY;
 	if (GetGridLocationUnderCursor(GridX, GridY))
 	{
-		// 💡 수정 1: 직접 변수에 접근하지 말고 Getter 함수를 호출하세요!
 		float TileSize = GridManager->GetTileSize(); 
-    
-		// 💡 수정 2: 격자 중심 좌표 계산
-		// (보통 그리드 매니저의 위치가 0,0 타일의 중심이라고 가정할 때의 계산식입니다)
 		FVector GridCenter = GridManager->GetActorLocation() + 
 						FVector(GridX * TileSize, GridY * TileSize, 50.0f);
 
@@ -72,12 +75,13 @@ void AGridController::CursorTrace()
 			FActorSpawnParameters SpawnParams;
 			SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
        
-			// 타워 데이터에서 클래스 정보 가져와서 스폰
-			CurrentPreviewActor = GetWorld()->SpawnActor<ATowerBase>(TowerData->TowerActorClass, GridCenter, FRotator::ZeroRotator, SpawnParams);
+			// 💡 수정: SelectedTowerData에서 클래스 정보를 가져옴
+			CurrentPreviewActor = GetWorld()->SpawnActor<ATowerBase>(SelectedTowerData->TowerActorClass, GridCenter, FRotator::ZeroRotator, SpawnParams);
        
 			if (CurrentPreviewActor)
 			{
-				CurrentPreviewActor->InitTower(TowerData, true); // 유령 모드로 초기화
+				// 💡 수정: SelectedTowerData로 초기화
+				CurrentPreviewActor->InitTower(SelectedTowerData, true); 
 			}
 		}
 		else
@@ -95,12 +99,53 @@ void AGridController::CursorTrace()
 
 void AGridController::OnMouseClick()
 {
-	if (!TowerData || !bBuildModeActive) return;
+	// 💡 SelectedTowerData가 있는지 확인
+	if (!SelectedTowerData || !bBuildModeActive) return;
 
 	int32 GridX, GridY;
 	if (GetGridLocationUnderCursor(GridX, GridY))
 	{
-		GridManager->AddTower(GridX, GridY, TowerData);
+		// 💡 SelectedTowerData를 전달
+		GridManager->AddTower(GridX, GridY, SelectedTowerData);
+	}
+}
+
+void AGridController::SetSelectedTower(UTowerData* NewData)
+{
+	if (!NewData) return;
+
+	SelectedTowerData = NewData;
+
+	// 타워가 바뀌었으므로 기존 프리뷰는 제거 (그래야 새 모양으로 생성됨)
+	if (CurrentPreviewActor)
+	{
+		CurrentPreviewActor->Destroy();
+		CurrentPreviewActor = nullptr;
+	}
+}
+
+void AGridController::OnKey1Pressed()
+{
+	if (TowerData.IsValidIndex(0)) 
+	{
+		SetSelectedTower(TowerData[0]);
+	}
+}
+
+// 2번 키 -> 1번째 타워
+void AGridController::OnKey2Pressed()
+{
+	if (TowerData.IsValidIndex(1)) 
+	{
+		SetSelectedTower(TowerData[1]);
+	}
+}
+
+void AGridController::OnKey3Pressed()
+{
+	if (TowerData.IsValidIndex(2)) 
+	{
+		SetSelectedTower(TowerData[2]);
 	}
 }
 
@@ -131,13 +176,15 @@ bool AGridController::GetGridLocationUnderCursor(int32& OutX, int32& OutY)
 
 void AGridController::UpdateGhostVisual()
 {
-	if (!CurrentPreviewActor || !TowerData) return;
+	if (!CurrentPreviewActor || !SelectedTowerData) return;
+
 	UStaticMeshComponent* MeshComp = CurrentPreviewActor->FindComponentByClass<UStaticMeshComponent>();
-	if (MeshComp && TowerData->PreviewMesh)
+	
+	if (MeshComp && SelectedTowerData->PreviewMesh)
 	{
-		if (MeshComp->GetStaticMesh() != TowerData->PreviewMesh)
+		if (MeshComp->GetStaticMesh() != SelectedTowerData->PreviewMesh)
 		{
-			MeshComp->SetStaticMesh(TowerData->PreviewMesh);
+			MeshComp->SetStaticMesh(SelectedTowerData->PreviewMesh);
 		}
 	}
 }

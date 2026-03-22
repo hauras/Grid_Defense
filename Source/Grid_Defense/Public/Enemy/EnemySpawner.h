@@ -20,7 +20,11 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FName EnemyRowName;
 
-	// (선택 사항) 이 몬스터가 나올 확률이나 무게감 등등 추가 가능
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	int32 SpawnCount = 10;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float SpawnInterval = 1.0f;
 };
 
 UCLASS()
@@ -42,15 +46,18 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spawning")
 	int32 CurrentSpawnLevel = 0;
-	
-	UPROPERTY(EditAnywhere, Category = "Spawning")
-	float SpawnInterval = 3.0f;
 
+	UPROPERTY(EditAnywhere, Category = "Spawning")
+	float TimeBetweenWaves = 5.0f;
+	
 	UPROPERTY(EditAnywhere, Category = "Spawning")
 	AActor* TargetDestination;
 
 	FTimerHandle SpawnTimerHandle;
 
+	int32 EnemySpawnInCurrentWave = 0;
+
+	void SpawnNextWave();
 	void SpawnEnemy();
 private:
 
