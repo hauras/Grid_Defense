@@ -163,12 +163,11 @@ void ATowerBase::Fire()
 		switch (MyData->TowerType)
 		{
 		case ETowerType::SingleTarget:
-			// 일반 타워: 데미지만 전달
+			// 일반 타워: 
 			Projectile->SetDamage(MyData->Damage);
 			break;
 
 		case ETowerType::AoE:
-			// 광역 타워: 캐스팅 후 SplashRadius까지 전달
 			if (ASplashProjectile* SplashProj = Cast<ASplashProjectile>(Projectile))
 			{
 				SplashProj->InitSplash(MyData->SplashRadius, MyData->Damage);
