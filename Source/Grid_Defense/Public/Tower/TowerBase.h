@@ -16,9 +16,8 @@ class GRID_DEFENSE_API ATowerBase : public AActor
 public:	
 	ATowerBase();
 
-	void InitTower(UTowerData* TowerData, bool bIsPreview = false);
+	virtual void InitTower(UTowerData* TowerData, bool bIsPreview = false);
 
-	
 protected:
 
 	UPROPERTY(VisibleAnywhere, Category = "Components")
@@ -44,5 +43,5 @@ protected:
 
 	void FindTarget();
 
-	void Fire();
+	virtual void Fire();
 };

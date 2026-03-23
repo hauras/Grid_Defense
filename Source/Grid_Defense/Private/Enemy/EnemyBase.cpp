@@ -2,6 +2,7 @@
 #include "Enemy/EnemyBase.h"
 
 #include "AIController.h"
+#include "GridGameplayTags.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/WidgetComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -26,7 +27,7 @@ AEnemyBase::AEnemyBase()
 
 void AEnemyBase::InitializeEnemy(FName InRowName)
 {
-	EnemyDataRowName = InRowName; // 내 이름표 내가 달기
+	EnemyDataRowName = InRowName; 
 	InitializeStats();
 }
 
@@ -88,6 +89,8 @@ void AEnemyBase::InitializeStats()
 			CurrentHP = MaxHP;
 
 			GetCharacterMovement()->MaxWalkSpeed = Data->MoveSpeed;
+
+			BaseMoveSpeed = Data->MoveSpeed; 
 
 			if (Data->EnemyMesh)
 			{
@@ -184,6 +187,24 @@ void AEnemyBase::Die()
 	}
 
 	SetLifeSpan(DestroyTime - 0.3f); 
+}
+
+void AEnemyBase::ApplySlow(float SlowDuration)
+{
+	if (!GameplayTags.HasTagExact(FGridGameplayTags::Get().State_Slow))
+	{
+		GameplayTags.AddTag(FGridGameplayTags::Get().State_Slow);
+
+		GetCharacterMovement()->MaxWalkSpeed = BaseMoveSpeed * 0.5f;
+	}
+	GetWorldTimerManager().SetTimer(SlowTimerHandle, this, &AEnemyBase::RemoveSlow, SlowDuration, false);
+}
+
+void AEnemyBase::RemoveSlow()
+{
+	GameplayTags.RemoveTag(FGridGameplayTags::Get().State_Slow);
+
+	GetCharacterMovement()->MaxWalkSpeed = BaseMoveSpeed;
 }
 
 

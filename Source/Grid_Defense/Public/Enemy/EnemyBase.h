@@ -2,7 +2,8 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
-#include "Engine/DataTable.h" // 필수!
+#include "Engine/DataTable.h" 
+#include "GameplayTagContainer.h"    
 #include "EnemyBase.generated.h"
 
 class UWidgetComponent;
@@ -32,15 +33,12 @@ class GRID_DEFENSE_API AEnemyBase : public ACharacter
 public:
     AEnemyBase();
 
-    // =====================================
-    // 🟢 [Public] 외부에서 마음껏 쓰는 함수들
-    // =====================================
-    virtual void Tick(float DeltaTime) override; // Tick은 부모를 따라 Public으로!
+    virtual void Tick(float DeltaTime) override; 
     
     virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser) override;
 
-    void InitializeStats(); // 스포너가 스폰 직후에 호출해야 하므로 Public!
-    void SetPath(const TArray<FVector>& NewPath); // 스포너가 수첩을 쥐여줘야 하므로 Public!
+    void InitializeStats();
+    void SetPath(const TArray<FVector>& NewPath); 
     void RecalculatePath();
     
     UFUNCTION(BlueprintCallable, Category = "Status")
@@ -51,35 +49,40 @@ public:
 
     void InitializeEnemy(FName InRowName);
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tags")
+    FGameplayTagContainer GameplayTags;
+
+    void ApplySlow(float SlowDuration);
     
 protected:
-    // =====================================
-    // 🟡 [Protected] 나와 자식들만 쓰는 핵심 기능/변수들
-    // =====================================
     virtual void BeginPlay() override;
     
-    void Die(); // 체력이 0이 되면 스스로 호출하므로 Protected로 숨김!
-
-    // 블루프린트 에디터에선 보이지만, C++ 외부에선 못 건드리는 중요 데이터!
+    void Die(); 
+    
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Data", meta = (AllowPrivateAccess = "true"))
     UDataTable* EnemyDataTable;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Data", meta = (AllowPrivateAccess = "true"))
     FName EnemyDataRowName;
 
-    // 내부 스탯 및 상태 변수들
     float CurrentHP;
     float MaxHP;
+    float BaseMoveSpeed;
+
+    
     bool bIsDead = false;
 
-    // 경로 추적용 내부 수첩 (외부에선 알 필요 없음)
     TArray<FVector> Waypoints;
     int32 CurrentIndex;
 
-    // 컴포넌트/애니메이션 (에디터 세팅용)
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "UI", meta = (AllowPrivateAccess = "true"))
     TObjectPtr<UWidgetComponent> HPBarWidget;
     
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation", meta = (AllowPrivateAccess = "true"))
     TObjectPtr<UAnimMontage> DeathMontage;
+    
+private:
+    void RemoveSlow();
+
+    FTimerHandle SlowTimerHandle;
 };
