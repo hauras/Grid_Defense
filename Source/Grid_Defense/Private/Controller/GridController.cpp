@@ -48,15 +48,16 @@ void AGridController::SetupInputComponent()
 		EnhancedInputComponent->BindAction(ClickAction, ETriggerEvent::Started, this, &AGridController::OnMouseClick);
 	}
 
-	// 💡 추가: 숫자키 직접 바인딩 (간편한 방법)
+	
 	InputComponent->BindKey(EKeys::One, IE_Pressed, this, &AGridController::OnKey1Pressed);
 	InputComponent->BindKey(EKeys::Two, IE_Pressed, this, &AGridController::OnKey2Pressed);
 	InputComponent->BindKey(EKeys::Three, IE_Pressed, this, &AGridController::OnKey3Pressed);
+	InputComponent->BindKey(EKeys::Four, IE_Pressed, this, &AGridController::OnKey4Pressed);
+
 }
 
 void AGridController::CursorTrace()
 {
-	// 💡 수정: TowerData(배열)가 아니라 SelectedTowerData(선택된 하나)가 있는지 체크
 	if (!GridManager || !SelectedTowerData || !bBuildModeActive) 
 	{
 		if (CurrentPreviewActor) CurrentPreviewActor->SetActorHiddenInGame(true);
@@ -75,12 +76,10 @@ void AGridController::CursorTrace()
 			FActorSpawnParameters SpawnParams;
 			SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
        
-			// 💡 수정: SelectedTowerData에서 클래스 정보를 가져옴
 			CurrentPreviewActor = GetWorld()->SpawnActor<ATowerBase>(SelectedTowerData->TowerActorClass, GridCenter, FRotator::ZeroRotator, SpawnParams);
        
 			if (CurrentPreviewActor)
 			{
-				// 💡 수정: SelectedTowerData로 초기화
 				CurrentPreviewActor->InitTower(SelectedTowerData, true); 
 			}
 		}
@@ -132,7 +131,6 @@ void AGridController::OnKey1Pressed()
 	}
 }
 
-// 2번 키 -> 1번째 타워
 void AGridController::OnKey2Pressed()
 {
 	if (TowerData.IsValidIndex(1)) 
@@ -146,6 +144,14 @@ void AGridController::OnKey3Pressed()
 	if (TowerData.IsValidIndex(2)) 
 	{
 		SetSelectedTower(TowerData[2]);
+	}
+}
+
+void AGridController::OnKey4Pressed()
+{
+	if (TowerData.IsValidIndex(3)) 
+	{
+		SetSelectedTower(TowerData[3]);
 	}
 }
 

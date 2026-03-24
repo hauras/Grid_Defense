@@ -40,7 +40,8 @@ protected:
 	void OnKey1Pressed();
 	void OnKey2Pressed();
 	void OnKey3Pressed();
-	
+	void OnKey4Pressed();
+
 private:
 	UPROPERTY()
 	TObjectPtr<ATowerBase> CurrentPreviewActor;
