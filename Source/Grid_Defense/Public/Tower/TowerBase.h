@@ -6,6 +6,7 @@
 #include "GameFramework/Actor.h"
 #include "TowerBase.generated.h"
 
+class APoolManager;
 class AProjectileBase;
 
 UCLASS()
@@ -20,6 +21,8 @@ public:
 
 protected:
 
+	virtual void BeginPlay() override;
+	
 	UPROPERTY(VisibleAnywhere, Category = "Components")
 	TObjectPtr<USceneComponent> Root;
 	
@@ -29,11 +32,15 @@ protected:
 	UPROPERTY(VisibleAnywhere, Category = "Components")
 	TObjectPtr<UDecalComponent> RangeDecal;
 
+	UPROPERTY(EditAnywhere, Category = "Effects")
+	TObjectPtr<USoundBase> AttackSound;
+	
 	UPROPERTY()
 	TObjectPtr<UTowerData> MyData;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Tower")
 	TSubclassOf<AProjectileBase> ProjectileClass;
+
 	bool bIsPreviewMode = false;
 
 	UPROPERTY()
@@ -44,4 +51,7 @@ protected:
 	void FindTarget();
 
 	virtual void Fire();
+
+	UPROPERTY()
+	TObjectPtr<APoolManager> CachedPoolManager;
 };

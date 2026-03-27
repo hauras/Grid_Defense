@@ -5,7 +5,9 @@
 #include "Components/DecalComponent.h"
 #include "Projectile/ProjectileBase.h"
 #include "Enemy/EnemyBase.h"
+#include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h" 
+#include "Projectile/PoolManager.h"
 #include "Projectile/SplashProjectile.h"
 
 ATowerBase::ATowerBase()
@@ -35,17 +37,14 @@ void ATowerBase::InitTower(UTowerData* TowerData, bool bIsPreview)
 		MeshComponent->SetStaticMesh(MyData->PreviewMesh);
 	}
 
-	// 2. 사거리 표시 
+	// 가중치 사용해서 사거리 표시
 	if (RangeDecal)
 	{
-		float CurrentScale = GetActorScale3D().X; 
-		
-		// 보정치 추가
-		float DecalMultiplier = 3.5f; 
-    
-		float AdjustedRadius = (MyData->AttackRange / CurrentScale) * DecalMultiplier;
+		RangeDecal->SetUsingAbsoluteScale(true); 
+       
+		float VisualRadius = MyData->AttackRange * MyData->DecalMultiplier;
 
-		RangeDecal->DecalSize = FVector(2000.0f, AdjustedRadius, AdjustedRadius);
+		RangeDecal->DecalSize = FVector(2000.0f, VisualRadius, VisualRadius);
 
 		if (MyData->RangeDecalMaterial)
 		{
@@ -54,7 +53,7 @@ void ATowerBase::InitTower(UTowerData* TowerData, bool bIsPreview)
 		RangeDecal->SetVisibility(bIsPreviewMode);
 	}
 
-	// 3. 상태에 따른 설정 및 타이머 작동
+	// 2. 상태 설정 및 타이머
 	if (bIsPreviewMode)
 	{
 		MeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -62,11 +61,9 @@ void ATowerBase::InitTower(UTowerData* TowerData, bool bIsPreview)
 	}
 	else
 	{
-		// [실제 설치 모드] 
 		MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 		MeshComponent->SetCastShadow(true);
         
-
 		if (MyData && MyData->AttackInterval > 0.f)
 		{
 			GetWorldTimerManager().SetTimer(AttackTimerHandle, this, &ATowerBase::FindTarget, MyData->AttackInterval, true);
@@ -74,22 +71,31 @@ void ATowerBase::InitTower(UTowerData* TowerData, bool bIsPreview)
 	}
 }
 
+void ATowerBase::BeginPlay()
+{
+	Super::BeginPlay();
+
+	CachedPoolManager = Cast<APoolManager>(UGameplayStatics::GetActorOfClass(GetWorld(), APoolManager::StaticClass()));
+	if (!CachedPoolManager)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[%s] 풀 매니저를 찾을 수 없습니다! 맵에 배치했는지 확인하세요."), *GetName());
+	}
+}
+
 void ATowerBase::FindTarget()
 {
     if (!MyData) return;
-	
+    
     if (CurrentTarget)
     {
         AEnemyBase* EnemyTarget = Cast<AEnemyBase>(CurrentTarget);
         
-        // 타겟이 이미 죽었으면 타겟 초기화
         if (!EnemyTarget || EnemyTarget->IsDead())
         {
             CurrentTarget = nullptr;
         }
         else
         {
-            
             float Distance2D = FVector::Dist2D(GetActorLocation(), CurrentTarget->GetActorLocation());
             
             if (Distance2D <= MyData->AttackRange)
@@ -104,10 +110,7 @@ void ATowerBase::FindTarget()
         }
     }
 
-   // 새로운 타겟 찾기
-    FVector SearchLocation = GetActorLocation();
-    SearchLocation.Z = 0.0f; 
-
+    //  새로운 타겟 탐색 
     TArray<AActor*> OverlappedActors;
     TArray<AActor*> ActorsToIgnore;
     ActorsToIgnore.Add(this);
@@ -117,10 +120,10 @@ void ATowerBase::FindTarget()
 
     bool bHit = UKismetSystemLibrary::SphereOverlapActors(
        this,
-       SearchLocation,
-       MyData->AttackRange,
+       GetActorLocation(), 
+       MyData->AttackRange + 300.0f, 
        ObjectTypes,
-       AActor::StaticClass(),
+       AEnemyBase::StaticClass(), 
        ActorsToIgnore,
        OverlappedActors
     );
@@ -133,10 +136,14 @@ void ATowerBase::FindTarget()
             
           if (Enemy && !Enemy->IsDead()) 
           {
-          	
-             CurrentTarget = Enemy; 
-             Fire();               
-             break;                
+             float Dist2D = FVector::Dist2D(GetActorLocation(), Enemy->GetActorLocation());
+             
+             if (Dist2D <= MyData->AttackRange)
+             {
+                CurrentTarget = Enemy; 
+                Fire();               
+                break; 
+             }
           }
        }
     }
@@ -146,24 +153,23 @@ void ATowerBase::Fire()
 {
 	if (!CurrentTarget || !MyData) return;
 
-	// 1. 소환 위치/회전 계산
+	if (AttackSound) 
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, AttackSound, GetActorLocation());
+	}
+	
 	FVector SpawnLocation = MeshComponent->GetSocketLocation(TEXT("Fire_Socket"));
 	FRotator SpawnRotation = MeshComponent->GetSocketRotation(TEXT("Fire_Socket"));
 
-	FActorSpawnParameters SpawnParams;
-	SpawnParams.Owner = this;
-	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-
-	// 2. 투사체 소환
-	AProjectileBase* Projectile = GetWorld()->SpawnActor<AProjectileBase>(ProjectileClass, SpawnLocation, SpawnRotation, SpawnParams);
-
+	AActor* PoolActor = CachedPoolManager->GetFromPool(ProjectileClass, SpawnLocation, SpawnRotation);
+	AProjectileBase* Projectile = Cast<AProjectileBase>(PoolActor);
 	if (Projectile)
 	{
-		// 3. 💡 TowerData의 'TowerType'에 따라 투사체 세팅을 다르게 함
+		Projectile->SetOwner(this);
+		
 		switch (MyData->TowerType)
 		{
 		case ETowerType::SingleTarget:
-			// 일반 타워: 
 			Projectile->SetDamage(MyData->Damage);
 			break;
 
@@ -175,12 +181,10 @@ void ATowerBase::Fire()
 			break;
 
 		case ETowerType::Chain:
-			// TODO: 나중에 체인 타워 로직 추가 (예: 전이 횟수 등)
 			Projectile->SetDamage(MyData->Damage);
 			break;
 		}
 
-		// 4. 발사!
 		Projectile->FireAtTarget(CurrentTarget);
 	}
 }

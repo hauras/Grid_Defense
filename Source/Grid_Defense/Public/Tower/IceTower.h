@@ -19,18 +19,13 @@ public:
 	AIceTower();
 
 protected:
-	virtual void BeginPlay() override;
 	
-	UPROPERTY(EditAnywhere, Category = "Effect")
-	TObjectPtr<USphereComponent> IceSphere;
-
 	UPROPERTY(EditAnywhere, Category = "Effect")
 	TObjectPtr<UNiagaraComponent> MistEffect;
 
 	void PulseAura();
 	FTimerHandle AuraPulseTimer;
 	
-	virtual void Fire() override;
 	virtual void InitTower(UTowerData* TowerData, bool bIsPreview = false) override;
 	
 };

@@ -5,6 +5,8 @@
 #include "GameFramework/Actor.h"
 #include "ProjectileBase.generated.h"
 
+class AEnemyBase;
+class APoolManager;
 class UNiagaraComponent;
 class UNiagaraSystem;
 class UProjectileMovementComponent;
@@ -21,7 +23,6 @@ public:
 	void SetDamage(float Damage);
 
 	virtual void FireInDirection(const FVector& ShootDirection);
-
 	virtual void FireAtTarget(AActor* TargetActor);
 
 	UFUNCTION()
@@ -29,8 +30,10 @@ public:
 
 
 protected:
-
 	virtual void BeginPlay() override;
+
+	UFUNCTION()
+	void OnTargetDied();
 	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<USphereComponent> Collision;
@@ -51,4 +54,12 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effects")
 	TObjectPtr<UNiagaraSystem> HitEffect;
+
+	UPROPERTY()
+	TObjectPtr<APoolManager> CachedPoolManager;
+
+	UPROPERTY()
+	TObjectPtr<AEnemyBase> CachedTarget;
+
+	void ReturnToManager();
 };

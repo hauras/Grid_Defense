@@ -1,98 +1,91 @@
-
-
 #include "Tower/IceTower.h"
 #include "NiagaraComponent.h"
-#include "Components/SphereComponent.h"
 #include "Enemy/EnemyBase.h"
 #include "DrawDebugHelpers.h"
-#include "GameFramework/CharacterMovementComponent.h"
+#include "Kismet/KismetSystemLibrary.h" // 오버랩 함수용
 
 AIceTower::AIceTower()
 {
-	IceSphere = CreateDefaultSubobject<USphereComponent>("IceSphere");
-	IceSphere->SetupAttachment(Root);
+    // 💡 IceSphere 컴포넌트 생성 코드 삭제! 엄청 가벼워졌습니다.
 
-	MistEffect = CreateDefaultSubobject<UNiagaraComponent>(TEXT("MistEffect"));
-	MistEffect->SetupAttachment(Root);
-	MistEffect->bAutoActivate = false;
-	
-}
-
-void AIceTower::BeginPlay()
-{
-	Super::BeginPlay();
-}
-
-void AIceTower::Fire()
-{
-	
+    MistEffect = CreateDefaultSubobject<UNiagaraComponent>(TEXT("MistEffect"));
+    MistEffect->SetupAttachment(Root);
+    MistEffect->bAutoActivate = false;
 }
 
 void AIceTower::InitTower(UTowerData* TowerData, bool bIsPreview)
 {
-	// 1. 부모의 InitTower 먼저 호출 (데칼 설정 로직 실행)
-	Super::InitTower(TowerData, bIsPreview);
+    Super::InitTower(TowerData, bIsPreview);
 
-	if (!MyData) return;
+    if (!MyData) return;
 
-	// 💡 [핵심 수정] 부모의 데칼 계산 방식과 일치시킵니다.
-	// 부모가 AdjustedRadius를 구할 때 (Range / Scale)을 했던 것처럼
-	// 콜리전 컴포넌트도 스케일 보정을 해줘야 월드 사거리와 일치합니다.
-	float CurrentScale = GetActorScale3D().X;
-	if (CurrentScale > 0.f)
-	{
-		// 월드 사거리 값을 로컬 스케일로 나눠서 셋팅
-		IceSphere->SetSphereRadius(MyData->AttackRange / CurrentScale);
-	}
+    // 💡 IceSphere 크기 조절 코드도 삭제! (데칼 세팅은 Super::InitTower가 다 해줌)
 
-	if (!bIsPreviewMode) 
-	{
-		MistEffect->Activate(); 
-		GetWorldTimerManager().SetTimer(AuraPulseTimer, this, &AIceTower::PulseAura, 0.5f, true); 
-	}
-	else 
-	{
-		IceSphere->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	}
+    if (!bIsPreviewMode) 
+    {
+       MistEffect->Activate(); 
+       GetWorldTimerManager().SetTimer(AuraPulseTimer, this, &AIceTower::PulseAura, 0.5f, true); 
+    }
 }
 
 void AIceTower::PulseAura()
 {
-	// 💡 디버그 구체도 이제 정확한 월드 사거리를 그려야 합니다.
-	// IceSphere->GetScaledSphereRadius()를 쓰면 현재 월드상의 실제 판정 크기가 나옵니다.
-	float RealWorldRadius = IceSphere->GetScaledSphereRadius();
+    if (!MyData) return;
 
-	DrawDebugSphere(
-		GetWorld(), 
-		GetActorLocation(), 
-		RealWorldRadius, 
-		32,                                 
-		FColor::Blue,                      
-		false,                            
-		0.5f                                
-	);
+    // 1. 디버그 구체 (절대적인 데이터 사거리 기준)
+    DrawDebugSphere(
+       GetWorld(), 
+       GetActorLocation(), 
+       MyData->AttackRange, // 스케일 꼬임 없이 순수 데이터 사거리 사용
+       32,                                 
+       FColor::Blue,                      
+       false,                            
+       0.5f                                
+    );
 
-	TArray<AActor*> Overlaps;
-	IceSphere->GetOverlappingActors(Overlaps, AEnemyBase::StaticClass());
+    // 2. 주변 탐색 (부모 타워와 똑같이 넉넉하게 긁어옵니다)
+    TArray<AActor*> OverlappedActors;
+    TArray<AActor*> ActorsToIgnore;
+    ActorsToIgnore.Add(this);
 
-	for (AActor* Actor : Overlaps)
-	{
-		if (AEnemyBase* Enemy = Cast<AEnemyBase>(Actor))
-		{
-			if (!Enemy->IsDead())
-			{
-				// 여기서 슬로우 로직 실행
-				Enemy->ApplySlow(1.0f);
+    TArray<TEnumAsByte<EObjectTypeQuery>> ObjectTypes;
+    ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_Pawn));
 
-				DrawDebugString(
-					GetWorld(), 
-					Enemy->GetActorLocation() + FVector(0, 0, 100), 
-					TEXT("Slowed!"), 
-					nullptr, 
-					FColor::Cyan, 
-					0.5f
-				);
-			}
-		}
-	}
+    UKismetSystemLibrary::SphereOverlapActors(
+       this,
+       GetActorLocation(),
+       MyData->AttackRange + 200.0f, // 실제보다 넓게 탐색 (3D 오차 방지)
+       ObjectTypes,
+       AEnemyBase::StaticClass(),
+       ActorsToIgnore,
+       OverlappedActors
+    );
+
+    // 3. 2D 거리로 정확하게 솎아내기 (선을 밟은 적만 슬로우!)
+    for (AActor* Actor : OverlappedActors)
+    {
+       if (AEnemyBase* Enemy = Cast<AEnemyBase>(Actor))
+       {
+          if (!Enemy->IsDead())
+          {
+             // 💡 2D 평면 거리 검증! 데칼 원 안에 완벽히 들어왔는가?
+             float Dist2D = FVector::Dist2D(GetActorLocation(), Enemy->GetActorLocation());
+             
+             if (Dist2D <= MyData->AttackRange)
+             {
+                 // 여기서 슬로우 로직 실행
+                 Enemy->ApplySlow(1.0f);
+
+                 DrawDebugString(
+                    GetWorld(), 
+                    Enemy->GetActorLocation() + FVector(0, 0, 100), 
+                    TEXT("Slowed!"), 
+                    nullptr, 
+                    FColor::Cyan, 
+                    0.5f
+                 );
+             }
+          }
+       }
+    }
 }

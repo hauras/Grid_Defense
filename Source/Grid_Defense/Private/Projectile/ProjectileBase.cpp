@@ -8,6 +8,8 @@
 #include "NiagaraSystem.h"
 #include "NiagaraComponent.h"
 #include "NiagaraFunctionLibrary.h"
+#include "Enemy/EnemyBase.h"
+#include "Projectile/PoolManager.h"
 
 AProjectileBase::AProjectileBase()
 {
@@ -53,6 +55,7 @@ void AProjectileBase::BeginPlay()
 		ProjectileComponent->SetAsset(Projectile);
 	}
 
+	CachedPoolManager = Cast<APoolManager>(UGameplayStatics::GetActorOfClass(GetWorld(), APoolManager::StaticClass()));
 	
 }
 
@@ -63,9 +66,35 @@ void AProjectileBase::SetDamage(float Damage)
 
 void AProjectileBase::FireInDirection(const FVector& ShootDirection)
 {
+	if (Collision)
+	{
+		Collision->SetCollisionProfileName(TEXT("BlockAllDynamic"));
+		Collision->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics); 
+		if (GetOwner())
+		{
+			Collision->IgnoreActorWhenMoving(GetOwner(), true);
+		}
+	}
+
+	if (MeshComponent)
+	{
+		MeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision); 
+	}
+
+	if (ProjectileComponent)
+	{
+		ProjectileComponent->Deactivate();   
+		ProjectileComponent->Activate(true); 
+	}
+
 	if (ProjectileMovement)
 	{
+		ProjectileMovement->SetUpdatedComponent(Collision); 
+       
 		ProjectileMovement->Velocity = ShootDirection * ProjectileMovement->InitialSpeed;
+		ProjectileMovement->SetComponentTickEnabled(true);
+       
+		ProjectileMovement->Activate(true); 
 	}
 }
 
@@ -73,16 +102,62 @@ void AProjectileBase::FireAtTarget(AActor* TargetActor)
 {
 	if (TargetActor && ProjectileMovement)
 	{
+		if (AEnemyBase* Enemy = Cast<AEnemyBase>(TargetActor))
+		{
+			Enemy->OnEnemyDied.AddUniqueDynamic(this, &AProjectileBase::OnTargetDied);
+          
+			CachedTarget = Enemy;
+		}
+
 		FVector Direction = (TargetActor->GetActorLocation() - GetActorLocation()).GetSafeNormal();
 		FireInDirection(Direction);
 	}
 }
 
-void AProjectileBase::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp,
-	FVector NormalImpulse, const FHitResult& Hit)
+void AProjectileBase::OnTargetDied()
 {
-	if (OtherActor && OtherActor != this && OtherActor != GetOwner())
+	UE_LOG(LogTemp, Error, TEXT("[%s] OnTargetDied 발생! 쫓던 적이 죽어서 돌아감."), *GetName());
+	ReturnToManager();
+}
+
+void AProjectileBase::ReturnToManager()
+{
+	UE_LOG(LogTemp, Warning, TEXT("[%s] ReturnToManager 호출됨! (공장으로 돌아감)"), *GetName());
+	if (CachedTarget)
 	{
+		CachedTarget->OnEnemyDied.RemoveDynamic(this, &AProjectileBase::OnTargetDied);
+		CachedTarget = nullptr;
+	}
+
+	if (ProjectileMovement)
+	{
+		ProjectileMovement->Velocity = FVector::ZeroVector;
+	}
+
+	if (ProjectileComponent)
+	{
+		ProjectileComponent->Deactivate();
+	}
+	
+	if (CachedPoolManager)
+	{
+		CachedPoolManager->ReturnToPool(this);
+	}
+	else
+	{
+		Destroy();
+	}
+}
+
+
+void AProjectileBase::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+							FVector NormalImpulse, const FHitResult& Hit)
+{
+	AEnemyBase* HitEnemy = Cast<AEnemyBase>(OtherActor);
+
+	if (HitEnemy && OtherActor != this && OtherActor != GetOwner())
+	{
+		UE_LOG(LogTemp, Error, TEXT("[%s] OnHit 발생! 맞은 적: %s"), *GetName(), *HitEnemy->GetName());
 		UGameplayStatics::ApplyDamage(
 		   OtherActor,                 
 		   ProjectileDamage,           
@@ -91,20 +166,17 @@ void AProjectileBase::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UP
 		   UDamageType::StaticClass()  
 		);
 
-		// 💡 [추가된 부분] 파괴되기 직전에 현재 위치에 피격 이펙트 소환!
-		// (주의: ProjectileBase.h 에 class UNiagaraSystem* HitEffect; 가 선언되어 있어야 합니다)
 		if (HitEffect)
 		{
 			UNiagaraFunctionLibrary::SpawnSystemAtLocation(
-				GetWorld(),
-				HitEffect,
-				GetActorLocation(), // 총알이 부딪힌 현재 위치
-				GetActorRotation()  // 터지는 방향
+			   GetWorld(),
+			   HitEffect,
+			   GetActorLocation(), 
+			   GetActorRotation()  
 			);
 		}
         
-		// 펑 터졌으니 총알은 파괴!
-		Destroy(); 
+		ReturnToManager(); 
 	}
 }
 

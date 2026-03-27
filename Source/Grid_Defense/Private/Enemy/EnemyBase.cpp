@@ -36,6 +36,7 @@ void AEnemyBase::BeginPlay()
 	Super::BeginPlay();
 	InitializeStats();
 
+	CachedGridManager = Cast<AGridManager>(UGameplayStatics::GetActorOfClass(GetWorld(), AGridManager::StaticClass()));
 	if (HPBarWidget)
 	{
 		UEnemyHPWidget* HPWidget = Cast<UEnemyHPWidget>(HPBarWidget->GetUserWidgetObject());
@@ -52,28 +53,24 @@ void AEnemyBase::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	if (bIsDead || Waypoints.Num() == 0) return;
+	if (bIsDead || !CachedGridManager) return;
 
-	FVector TargetLocation = Waypoints[CurrentIndex];
+	// 1. 현재 내 위치의 화살표 방향을 물어본다
+	FVector MoveDirection = CachedGridManager->GetFlowDirection(GetActorLocation());
 
-	FVector MyLocation = GetActorLocation();
-	TargetLocation.Z = MyLocation.Z;
-
-	float DistanceToTarget = FVector::Distance(TargetLocation, MyLocation);
-	if (DistanceToTarget < 10.0f)
+	// 2. 화살표가 있다면 그 방향으로 이동!
+	if (!MoveDirection.IsZero())
 	{
-		CurrentIndex++;
+		AddMovementInput(MoveDirection, 1.0f);
 
-		if (CurrentIndex >= Waypoints.Num())
-		{
-			Waypoints.Empty();
-			return;
-		}
+		// 몬스터가 이동 방향을 부드럽게 바라보게 하고 싶다면?
+		FRotator TargetRot = MoveDirection.Rotation();
+		SetActorRotation(FMath::RInterpTo(GetActorRotation(), TargetRot, DeltaTime, 5.f));
 	}
 	else
 	{
-		FVector Direction = (TargetLocation - MyLocation).GetSafeNormal();
-		AddMovementInput(Direction, 1.0f);
+		// 💡 방향이 ZeroVector라는 건 넥서스에 도착했다는 뜻일 확률이 높음!
+		// 여기서 넥서스 공격 로직이나 파괴 로직을 넣으면 됩니다.
 	}
 }
 
@@ -106,39 +103,6 @@ void AEnemyBase::SetPath(const TArray<FVector>& NewPath)
 	CurrentIndex = 0;
 }
 
-void AEnemyBase::RecalculatePath()
-{
-	AGridManager* GridManager = Cast<AGridManager>(UGameplayStatics::GetActorOfClass(GetWorld(), AGridManager::StaticClass()));
-	if (!GridManager) return;
-
-	FVector MyLoc = GetActorLocation();
-    
-	FVector RelativeLoc = MyLoc - GridManager->GetActorLocation();
-	float TileSize = GridManager->GetTileSize();
-
-	FIntPoint MyTile;
-	MyTile.X = FMath::FloorToInt((RelativeLoc.X + (TileSize * 0.5f)) / TileSize);
-	MyTile.Y = FMath::FloorToInt((RelativeLoc.Y + (TileSize * 0.5f)) / TileSize);
-
-	int32 EndX = GridManager->GetGridWidth() - 1;
-	int32 EndY = GridManager->GetGridHeight() - 1;
-
-	TArray<FIntPoint> NewGridPath;
-    
-	if (GridManager->FindPath(MyTile.X, MyTile.Y, EndX, EndY, NewGridPath))
-	{
-		TArray<FVector> NewWorldPath;
-		for (FIntPoint Node : NewGridPath)
-		{
-			FVector Pos = GridManager->GetTileWorldPosition(Node.X, Node.Y);
-			Pos.Z = MyLoc.Z; 
-			NewWorldPath.Add(Pos);
-		}
-
-		SetPath(NewWorldPath);
-	}
-}
-
 // 데미지 적용
 float AEnemyBase::TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent,
                              class AController* EventInstigator, AActor* DamageCauser)
@@ -164,6 +128,8 @@ void AEnemyBase::Die()
 	if (bIsDead) return; 
 	bIsDead = true;      
 
+	OnEnemyDied.Broadcast();
+	
 	AGridGameMode* GM = Cast<AGridGameMode>(UGameplayStatics::GetGameMode(GetWorld()));
 	if (GM)
 	{

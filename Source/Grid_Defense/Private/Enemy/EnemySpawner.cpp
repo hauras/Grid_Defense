@@ -60,7 +60,7 @@ void AEnemySpawner::SpawnEnemy()
             // ==========================================
             // [A* 내비게이션 경로 주입 로직 - 기존 유지]
             // ==========================================
-            AGridManager* GridManager = Cast<AGridManager>(UGameplayStatics::GetActorOfClass(GetWorld(), AGridManager::StaticClass()));
+            /*AGridManager* GridManager = Cast<AGridManager>(UGameplayStatics::GetActorOfClass(GetWorld(), AGridManager::StaticClass()));
             if (GridManager)
             {
                 TArray<FIntPoint> GridPath;
@@ -79,7 +79,7 @@ void AEnemySpawner::SpawnEnemy()
                     }
                     SpawnedEnemy->SetPath(WorldPath);
                 }
-            }
+            }*/
 
             // 💡 [핵심 추가] 소환 카운트 1 증가
             EnemySpawnInCurrentWave++;

@@ -6,8 +6,12 @@
 #include "GameplayTagContainer.h"    
 #include "EnemyBase.generated.h"
 
+class AGridManager;
 class UWidgetComponent;
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnHPChangedDelegate, float, CurrentHP, float, MaxHP);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnEnemyDiedDelegate);
+
 
 USTRUCT(BlueprintType)
 struct FEnemyData : public FTableRowBase
@@ -46,7 +50,10 @@ public:
 
     UPROPERTY(BlueprintAssignable, Category = "Events")
     FOnHPChangedDelegate OnHPChanged;
-
+    
+    UPROPERTY(BlueprintAssignable, Category = "Events")
+    FOnEnemyDiedDelegate OnEnemyDied;
+    
     void InitializeEnemy(FName InRowName);
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tags")
@@ -64,11 +71,17 @@ protected:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Data", meta = (AllowPrivateAccess = "true"))
     FName EnemyDataRowName;
-
+    
     float CurrentHP;
     float MaxHP;
     float BaseMoveSpeed;
 
+
+    UPROPERTY(Transient)
+    TObjectPtr<AGridManager> CachedGridManager;
+
+    UPROPERTY(EditAnywhere, Category = "Movement")
+    float ArrivalDistance = 100.f;
     
     bool bIsDead = false;
 

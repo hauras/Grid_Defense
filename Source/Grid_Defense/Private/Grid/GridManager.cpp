@@ -38,6 +38,121 @@ FVector AGridManager::GetTileWorldPosition(int32 X, int32 Y) const
 	return FVector::ZeroVector;
 }
 
+void AGridManager::UpdateFlowField()
+{
+	// 1. 초기화: 모든 타일의 비용을 최대로, 방향은 제로로 설정
+	for (int i = 0; i < GridArray.Num(); ++i)
+	{
+		GridArray[i].FlowCost = 99999;
+		GridArray[i].FlowDirection = FVector::ZeroVector;
+	}
+
+	TQueue<FIntPoint> Queue;
+	// 목적지(넥서스) 설정 (보통 그리드의 우측 상단 끝)
+	int32 NexusX = GridWidth - 1;
+	int32 NexusY = GridHeight - 1;
+	int32 NexusIndex = GetIndex(NexusX, NexusY);
+
+	// 목적지의 비용은 0
+	GridArray[NexusIndex].FlowCost = 0;
+	Queue.Enqueue(FIntPoint(NexusX, NexusY));
+
+	// 2. Integration Field: BFS를 이용해 모든 타일에서 목적지까지의 거리(Cost) 계산
+	while (!Queue.IsEmpty())
+	{
+		FIntPoint CurrentNode;
+		Queue.Dequeue(CurrentNode);
+
+		int32 CurrentIndex = GetIndex(CurrentNode.X, CurrentNode.Y);
+		int32 CurrentCost = GridArray[CurrentIndex].FlowCost;
+
+		// 갈 수 있는 이웃 타일들 체크
+		TArray<FIntPoint> Neighbors = GetWalkableNeighbors(CurrentNode.X, CurrentNode.Y);
+		for (auto Neighbor : Neighbors)
+		{
+			int32 NeighborIndex = GetIndex(Neighbor.X, Neighbor.Y);
+			
+			// 아직 방문하지 않았거나, 더 짧은 경로를 발견한 경우
+			if (GridArray[NeighborIndex].FlowCost > CurrentCost + 1)
+			{
+				GridArray[NeighborIndex].FlowCost = CurrentCost + 1;
+				Queue.Enqueue(Neighbor);
+			}
+		}
+	}
+
+	// 3. Flow Field 생성: 각 타일에서 어느 방향으로 가야 최단거리인지 벡터 계산
+	for (int i = 0; i < GridArray.Num(); ++i)
+	{
+		// 길이 없거나(99999) 이미 목적지(0)인 곳은 계산할 필요 없음
+		if (GridArray[i].FlowCost >= 99999 || GridArray[i].FlowCost == 0)
+		{
+			continue;
+		}
+
+		TArray<FIntPoint> Neighbors = GetWalkableNeighbors(GridArray[i].X, GridArray[i].Y);
+
+		int32 BestCost = GridArray[i].FlowCost;
+		FIntPoint BestNeighborPos = FIntPoint(GridArray[i].X, GridArray[i].Y);
+		bool bFoundPath = false;
+
+		// 💡 정빈님이 작성하려던 Mincost 로직의 완성형입니다.
+		for (auto Neighbor : Neighbors)
+		{
+			int32 NeighborIndex = GetIndex(Neighbor.X, Neighbor.Y);
+			int32 NeighborCost = GridArray[NeighborIndex].FlowCost;
+
+			// 내 주변 타일 중 나보다 숫자가 낮은(목적지에 더 가까운) 타일을 찾습니다.
+			if (NeighborCost < BestCost)
+			{
+				BestCost = NeighborCost;
+				BestNeighborPos = Neighbor; // 그 타일의 좌표를 저장!
+				bFoundPath = true;
+			}
+		}
+
+		// 4. 방향 벡터 저장 (나침반 굽기)
+		if (bFoundPath)
+		{
+			FVector CurrentPos = GridArray[i].WorldPosition;
+			FVector TargetPos = GridArray[GetIndex(BestNeighborPos.X, BestNeighborPos.Y)].WorldPosition;
+
+			// 💡 방향 = (가야 할 타일 위치 - 현재 타일 위치)
+			// 이 벡터를 통해 몬스터가 어느 방향으로 힘을 받아야 하는지 결정됩니다.
+			GridArray[i].FlowDirection = (TargetPos - CurrentPos).GetSafeNormal();
+		}
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("Flow Field 생성 완료! 모든 드래곤이 지도를 갱신했습니다."));
+}
+
+FVector AGridManager::GetFlowDirection(FVector WorldLocation) const
+{
+	FIntPoint GridPt = GetGridPointFromWorld(WorldLocation);
+	int32 Index = GetIndex(GridPt.X, GridPt.Y);
+
+	// 2. 안전 검사 후 해당 타일의 화살표 반환
+	if (GridArray.IsValidIndex(Index))
+	{
+		return GridArray[Index].FlowDirection;
+	}
+
+	return FVector::ZeroVector;
+}
+
+FIntPoint AGridManager::GetGridPointFromWorld(FVector WorldLocation) const
+{
+	FVector LocalPosition = WorldLocation - GetActorLocation();
+
+	int32 X = FMath::RoundToInt(LocalPosition.X / TileSize);
+	int32 Y = FMath::RoundToInt(LocalPosition.Y / TileSize);
+
+	X = FMath::Clamp(X, 0, GridWidth - 1);
+	Y = FMath::Clamp(Y, 0, GridHeight - 1);
+	return FIntPoint(X, Y);
+	
+}
+
 void AGridManager::BeginPlay()
 {
 	Super::BeginPlay();
@@ -114,6 +229,8 @@ void AGridManager::GenerateGrid()
 
 		ANexus* SpawnedNexus = GetWorld()->SpawnActor<ANexus>(NexusClass, NexusLoc, FRotator::ZeroRotator);
 	}
+
+	UpdateFlowField();
 }
 
 void AGridManager::AddTower(int32 X, int32 Y, UTowerData* SelectedData)
@@ -129,32 +246,30 @@ void AGridManager::AddTower(int32 X, int32 Y, UTowerData* SelectedData)
 		return;
 	}
 	
-	// 테스트용
 	GridArray[Index].bIsWalkable = false;
 
-	// 2. 정빈님의 스폰 코드에 맞춘 정확한 시작/끝 좌표!
-	int32 SpawnerX = 0;
+	UpdateFlowField();
+
+	// A* 알고리즘 용 변수
+	/*int32 SpawnerX = 0;
 	int32 SpawnerY = 0;
 	int32 NexusX = GridWidth - 1; 
 	int32 NexusY = GridHeight - 1; 
 
-	// 💡 경로를 담아올 빈 가방을 하나 임시로 만듭니다.
 	TArray<FIntPoint> DummyPath; 
     
-	// 가방(DummyPath)도 같이 넘겨줍니다!
-	bool bIsPathClear = FindPath(SpawnerX, SpawnerY, NexusX, NexusY, DummyPath);
+	bool bIsPathClear = FindPath(SpawnerX, SpawnerY, NexusX, NexusY, DummyPath);*/
+	int32 SpawnerIndex = GetIndex(0, 0);
+	bool bIsPathClear = (GridArray[SpawnerIndex].FlowCost < 99999);
 
-	// 3. 증거 인멸 (다시 걷기 가능 상태로 롤백)
-	GridArray[Index].bIsWalkable = true;
+	//GridArray[Index].bIsWalkable = true;
 
-	// 4. 판결: 길이 아예 막혀버렸다면?
 	if (!bIsPathClear)
 	{
-		// 화면에 빨간색 경고 띄우고
-		GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Red, TEXT("설치 불가: 몬스터가 지나갈 길은 남겨둬야 합니다!"));
-       
-		// 돈 안 깎고 함수 종료! (설치 취소)
-		return; 
+		GridArray[Index].bIsWalkable = true; // 다시 길 열어주기
+		UpdateFlowField(); // 필드 복구
+		GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Red, TEXT("설치 불가: 길이 막힙니다!"));
+		return;
 	}
 	
 	TSubclassOf<AActor> ClassToSpawn = SelectedData->TowerActorClass;
@@ -163,7 +278,7 @@ void AGridManager::AddTower(int32 X, int32 Y, UTowerData* SelectedData)
 	AGridGameMode* GM = Cast<AGridGameMode>(UGameplayStatics::GetGameMode(GetWorld()));
 	if (GM)
 	{
-		int32 TowerCost = 20;
+		int32 TowerCost = SelectedData->BuildCost;
 
 		if (!GM->SpendGold(TowerCost))
 		{
@@ -182,22 +297,20 @@ void AGridManager::AddTower(int32 X, int32 Y, UTowerData* SelectedData)
 	GridArray[Index].TileType = ETileType::Tower;
 	GridArray[Index].bIsWalkable = false; 
 
-	// 3. 월드에 있는 모든 EnemyBase 클래스를 찾습니다.
-	TArray<AActor*> FoundEnemies;
+	/*TArray<AActor*> FoundEnemies;
 	UGameplayStatics::GetAllActorsOfClass(GetWorld(), AEnemyBase::StaticClass(), FoundEnemies);
 
 	for (AActor* Actor : FoundEnemies)
 	{
 		AEnemyBase* Enemy = Cast<AEnemyBase>(Actor);
         
-		// 죽지 않은 몬스터들만 골라서 새 지도를 쥐여줍니다.
 		if (Enemy && !Enemy->IsDead())
 		{
-			// 몬스터가 가진 RecalculatePath() 함수 호출 (아래에서 만들 예정!)
 			Enemy->RecalculatePath(); 
 		}
-	}
-    
+	}*/
+	UpdateFlowField();
+	
 	UE_LOG(LogTemp, Warning, TEXT("타워 건설 완료: 모든 몬스터의 경로를 갱신합니다."));
 }
 
@@ -208,13 +321,13 @@ bool AGridManager::bIsTileBuildable(int32 X, int32 Y) const
 	return GridArray[Index].TileType == ETileType::Empty;
 }
 
-int32 AGridManager::GetDistance(int32 NodeAX, int32 NodeAY, int32 NodeBX, int32 NodeBY)
+/*int32 AGridManager::GetDistance(int32 NodeAX, int32 NodeAY, int32 NodeBX, int32 NodeBY)
 {
 	int32 X = FMath::Abs(NodeAX - NodeBX);
 	int32 Y = FMath::Abs(NodeAY - NodeBY);
 
 	return (X + Y) * 10;
-}
+}*/
 
 TArray<FIntPoint> AGridManager::GetWalkableNeighbors(int32 X, int32 Y)
 {
@@ -240,103 +353,109 @@ TArray<FIntPoint> AGridManager::GetWalkableNeighbors(int32 X, int32 Y)
 	return Neighbors;
 }
 
+/*
 bool AGridManager::FindPath(int32 StartX, int32 StartY, int32 EndX, int32 EndY, TArray<FIntPoint>& OutPath)
 {
-	if (!GridArray.IsValidIndex(GetIndex(StartX, StartY)) || !GridArray.IsValidIndex(GetIndex(EndX, EndY))) return false;
+    if (!GridArray.IsValidIndex(GetIndex(StartX, StartY)) || !GridArray.IsValidIndex(GetIndex(EndX, EndY))) return false;
 
-	TArray<FAStarNode*> OpenList; // 앞으로 볼 노드
-	TArray<FIntPoint> ClosedList; // 방문한 노드
-	TArray<FAStarNode*> AllNodes;
+// 💡 여기서부터 A* 알고리즘 로직 비활성화 (나중에 비교를 위해 보존)
+#if 0 
+    TArray<FAStarNode*> OpenList; // 앞으로 볼 노드
+    TArray<FIntPoint> ClosedList; // 방문한 노드
+    TArray<FAStarNode*> AllNodes;
 
-	FAStarNode* StartNode = new FAStarNode(StartX, StartY);
-	AllNodes.Add(StartNode);
-	OpenList.Add(StartNode);
+    FAStarNode* StartNode = new FAStarNode(StartX, StartY);
+    AllNodes.Add(StartNode);
+    OpenList.Add(StartNode);
 
-	while (OpenList.Num() > 0)
-	{
-		FAStarNode* CurrentNode = OpenList[0];
-		int32 CurrentIndex = 0;
+    while (OpenList.Num() > 0)
+    {
+       FAStarNode* CurrentNode = OpenList[0];
+       int32 CurrentIndex = 0;
 
-		for (int32 i = 1; i < OpenList.Num(); ++i)
-		{
-			if (OpenList[i]->FCost < CurrentNode->FCost || (OpenList[i]->FCost == CurrentNode->FCost && OpenList[i]->HCost < CurrentNode->HCost))
-			{
-				CurrentNode = OpenList[i];
-				CurrentIndex = i;
-			}
-		}
+       for (int32 i = 1; i < OpenList.Num(); ++i)
+       {
+          if (OpenList[i]->FCost < CurrentNode->FCost || (OpenList[i]->FCost == CurrentNode->FCost && OpenList[i]->HCost < CurrentNode->HCost))
+          {
+             CurrentNode = OpenList[i];
+             CurrentIndex = i;
+          }
+       }
 
-		OpenList.RemoveAt(CurrentIndex);
-	
-		ClosedList.Add(FIntPoint(CurrentNode->X, CurrentNode->Y));
+       OpenList.RemoveAt(CurrentIndex);
+    
+       ClosedList.Add(FIntPoint(CurrentNode->X, CurrentNode->Y));
 
-		// 도착지 확인
-		if (CurrentNode->X == EndX && CurrentNode->Y == EndY)
-		{
-			OutPath.Empty();
-			FAStarNode* TraceNode = CurrentNode;
-			while (TraceNode != nullptr)
-			{
-				OutPath.Add(FIntPoint(TraceNode->X, TraceNode->Y));
-				TraceNode = TraceNode->ParentNode;
-			}
+       // 도착지 확인
+       if (CurrentNode->X == EndX && CurrentNode->Y == EndY)
+       {
+          OutPath.Empty();
+          FAStarNode* TraceNode = CurrentNode;
+          while (TraceNode != nullptr)
+          {
+             OutPath.Add(FIntPoint(TraceNode->X, TraceNode->Y));
+             TraceNode = TraceNode->ParentNode;
+          }
 
-			Algo::Reverse(OutPath);
-			
-			for (auto Node : AllNodes)
-			{
-				delete Node;
-			}
-			return true;
-		}
+          Algo::Reverse(OutPath);
+          
+          for (auto Node : AllNodes)
+          {
+             delete Node;
+          }
+          return true;
+       }
 
-		TArray<FIntPoint> Neighbors = GetWalkableNeighbors(CurrentNode->X, CurrentNode->Y);
+       TArray<FIntPoint> Neighbors = GetWalkableNeighbors(CurrentNode->X, CurrentNode->Y);
 
-		for (auto Neighbor : Neighbors)
-		{
-			if (ClosedList.Contains(Neighbor))
-			{
-				continue;
-			}
+       for (auto Neighbor : Neighbors)
+       {
+          if (ClosedList.Contains(Neighbor))
+          {
+             continue;
+          }
 
-			int32 NewGCost = CurrentNode->GCost + GetDistance(CurrentNode->X, CurrentNode->Y, Neighbor.X, Neighbor.Y);
+          int32 NewGCost = CurrentNode->GCost + GetDistance(CurrentNode->X, CurrentNode->Y, Neighbor.X, Neighbor.Y);
 
-			FAStarNode* NeighborNode = nullptr;
+          FAStarNode* NeighborNode = nullptr;
 
-			for (FAStarNode* Node : OpenList)
-			{
-				if (Node->X == Neighbor.X && Node->Y == Neighbor.Y)
-				{
-					NeighborNode = Node;
-					break;
-				}
-			}
+          for (FAStarNode* Node : OpenList)
+          {
+             if (Node->X == Neighbor.X && Node->Y == Neighbor.Y)
+             {
+                NeighborNode = Node;
+                break;
+             }
+          }
 
-			if (NeighborNode == nullptr || NewGCost < NeighborNode->GCost)
-			{
-				if (NeighborNode == nullptr)
-				{
-					NeighborNode = new FAStarNode(Neighbor.X, Neighbor.Y);
-					AllNodes.Add(NeighborNode);
-					OpenList.Add(NeighborNode);
-				}
+          if (NeighborNode == nullptr || NewGCost < NeighborNode->GCost)
+          {
+             if (NeighborNode == nullptr)
+             {
+                NeighborNode = new FAStarNode(Neighbor.X, Neighbor.Y);
+                AllNodes.Add(NeighborNode);
+                OpenList.Add(NeighborNode);
+             }
 
-				// G 최신화
-				NeighborNode->GCost = NewGCost;
-				// H 계산
-				NeighborNode->HCost = GetDistance(NeighborNode->X, NeighborNode->Y, EndX, EndY);
-				// F 계산 (G + H)
-				NeighborNode->FCost = NeighborNode->GCost + NeighborNode->HCost;
-				
-				NeighborNode->ParentNode = CurrentNode;
-			}
-		}
-	}
+             // G 최신화
+             NeighborNode->GCost = NewGCost;
+             // H 계산
+             NeighborNode->HCost = GetDistance(NeighborNode->X, NeighborNode->Y, EndX, EndY);
+             // F 계산 (G + H)
+             NeighborNode->FCost = NeighborNode->GCost + NeighborNode->HCost;
+             
+             NeighborNode->ParentNode = CurrentNode;
+          }
+       }
+    }
 
-	for (auto Node : AllNodes)
-	{
-		delete Node;
-	}
-	return false;
+    for (auto Node : AllNodes)
+    {
+       delete Node;
+    }
+#endif
+
+    // 플로우 필드를 완성하기 전까지 임시로 true를 반환하여 에러 방지
+    return true; 
 }
-
+*/

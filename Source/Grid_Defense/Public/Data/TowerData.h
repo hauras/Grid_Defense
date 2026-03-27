@@ -14,30 +14,6 @@ enum class ETowerType : uint8
 	Chain, 
 };
 
-UENUM(BlueprintType)
-enum class EStatusType : uint8
-{
-	None,
-	Burn,
-	Slow,
-	Stun
-};
-
-USTRUCT(BlueprintType)
-struct FStatus
-{
-	GENERATED_BODY()
-	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	EStatusType Status = EStatusType::None;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	float EffectValue = 0.f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	float Duration = 0.f;
-};
-
 UCLASS()
 class GRID_DEFENSE_API UTowerData : public UPrimaryDataAsset
 {
@@ -61,16 +37,10 @@ public:
 	
 	UPROPERTY(EditAnywhere, Category = "Info", meta = (EditCondition = "TowerType == ETowerType::AoE", EditConditionHides))
 	float SplashRadius = 300.f;
-
-	UPROPERTY(EditAnywhere, Category = "Info") // 카테고리 분리 추천
-	TObjectPtr<UNiagaraSystem> ExplosionEffect;
 	
 	UPROPERTY(EditAnywhere, Category = "Info")
 	TObjectPtr<UStaticMesh> PreviewMesh;
-
-	UPROPERTY(EditAnywhere, Category = "Status")
-	FStatus StatusEffect;
-
+	
 	// 건설 비용도 데이터에 있으면 좋겠죠?
 	UPROPERTY(EditAnywhere, Category = "Economy")
 	int32 BuildCost = 100;
@@ -83,4 +53,7 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = "Info", meta = (MultiLine = true))
 	FText Description;
+
+	UPROPERTY(EditAnywhere, Category = "Visual")
+	float DecalMultiplier = 1.0f;
 };
