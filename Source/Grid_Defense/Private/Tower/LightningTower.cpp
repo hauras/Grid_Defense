@@ -4,6 +4,8 @@
 #include "NiagaraFunctionLibrary.h"
 #include "Enemy/EnemyBase.h"
 #include "Kismet/GameplayStatics.h"
+#include "Projectile/EffectActor.h"
+#include "Projectile/PoolManager.h"
 
 ALightningTower::ALightningTower()
 {
@@ -32,9 +34,14 @@ void ALightningTower::ExecuteChain(AActor* Target, int32 CurrentChainCount, TArr
 			);
 	}
 
-	if (LightningEffect)
+	if (LightningEffectClass) 
 	{
-		UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), LightningEffect, Target->GetActorLocation());
+		AActor* PooledActor = CachedPoolManager->GetFromPool(LightningEffectClass, Target->GetActorLocation(), FRotator::ZeroRotator);
+   
+		if (AEffectActor* Effect = Cast<AEffectActor>(PooledActor))
+		{
+			Effect->PlayEffect(0.2f); 
+		}
 	}
 
 	HitActors.Add(Target);
@@ -78,14 +85,11 @@ void ALightningTower::ExecuteChain(AActor* Target, int32 CurrentChainCount, TArr
 	if (NextTarget)
 	{
 
-		// 💡 [새로운 로직] 0.15초 딜레이를 주는 타이머 세팅
 		FTimerHandle ChainTimerHandle;
 		FTimerDelegate ChainDelegate;
 
-		// 델리게이트에 '실행할 함수'와 '넘겨줄 파라미터들'을 포장합니다.
 		ChainDelegate.BindUObject(this, &ALightningTower::ExecuteChain, NextTarget, CurrentChainCount + 1, HitActors);
 
-		// 타이머 매니저에게 0.15초(0.15f) 뒤에, 단 한 번(false) 실행하라고 명령합니다.
 		GetWorld()->GetTimerManager().SetTimer(ChainTimerHandle, ChainDelegate, 0.15f, false);
 	}
 }

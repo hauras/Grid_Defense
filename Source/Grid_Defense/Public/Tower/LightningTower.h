@@ -25,8 +25,8 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Tower")
 	float ChainRange = 500.f;
 
-	UPROPERTY(EditAnywhere, Category= "Tower")
-	TObjectPtr<UNiagaraSystem> LightningEffect;
+	UPROPERTY(EditAnywhere, Category = "Effects")
+	TSubclassOf<class AEffectActor> LightningEffectClass;
 
 	void ExecuteChain(AActor* Target, int32 CurrentChainCount, TArray<AActor*> HitActors); 
 };
