@@ -40,6 +40,9 @@ public:
 	
 	UPROPERTY(EditAnywhere, Category = "Info")
 	TObjectPtr<UStaticMesh> PreviewMesh;
+
+	UPROPERTY(EditAnywhere, Category = "Visual")
+	TObjectPtr<UTexture2D> TowerIcon;
 	
 	// 건설 비용도 데이터에 있으면 좋겠죠?
 	UPROPERTY(EditAnywhere, Category = "Economy")
@@ -49,7 +52,7 @@ public:
 	TSubclassOf<AActor> TowerActorClass;
 
 	UPROPERTY(EditAnywhere, Category = "Info")
-	FText TowerName;
+	FName TowerName;
 
 	UPROPERTY(EditAnywhere, Category = "Info", meta = (MultiLine = true))
 	FText Description;

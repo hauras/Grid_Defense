@@ -96,13 +96,11 @@ void AGridManager::UpdateFlowField()
 		FIntPoint BestNeighborPos = FIntPoint(GridArray[i].X, GridArray[i].Y);
 		bool bFoundPath = false;
 
-		// 💡 정빈님이 작성하려던 Mincost 로직의 완성형입니다.
 		for (auto Neighbor : Neighbors)
 		{
 			int32 NeighborIndex = GetIndex(Neighbor.X, Neighbor.Y);
 			int32 NeighborCost = GridArray[NeighborIndex].FlowCost;
 
-			// 내 주변 타일 중 나보다 숫자가 낮은(목적지에 더 가까운) 타일을 찾습니다.
 			if (NeighborCost < BestCost)
 			{
 				BestCost = NeighborCost;
@@ -117,13 +115,10 @@ void AGridManager::UpdateFlowField()
 			FVector CurrentPos = GridArray[i].WorldPosition;
 			FVector TargetPos = GridArray[GetIndex(BestNeighborPos.X, BestNeighborPos.Y)].WorldPosition;
 
-			// 💡 방향 = (가야 할 타일 위치 - 현재 타일 위치)
-			// 이 벡터를 통해 몬스터가 어느 방향으로 힘을 받아야 하는지 결정됩니다.
 			GridArray[i].FlowDirection = (TargetPos - CurrentPos).GetSafeNormal();
 		}
 	}
 
-	UE_LOG(LogTemp, Log, TEXT("Flow Field 생성 완료! 모든 드래곤이 지도를 갱신했습니다."));
 }
 
 FVector AGridManager::GetFlowDirection(FVector WorldLocation) const
@@ -153,6 +148,19 @@ FIntPoint AGridManager::GetGridPointFromWorld(FVector WorldLocation) const
 	
 }
 
+int32 AGridManager::GetFlowCost(FVector WorldLocation) const
+{
+	FIntPoint GridPt = GetGridPointFromWorld(WorldLocation);
+	int32 Index = GetIndex(GridPt.X, GridPt.Y);
+
+	if (GridArray.IsValidIndex(Index))
+	{
+		return GridArray[Index].FlowCost;
+	}
+
+	return 999999;
+}
+
 void AGridManager::BeginPlay()
 {
 	Super::BeginPlay();
@@ -161,76 +169,108 @@ void AGridManager::BeginPlay()
 
 void AGridManager::GenerateGrid()
 {
-	int32 TotalTiles = GridWidth * GridHeight;
-	GridArray.Empty();
-	GridArray.SetNum(TotalTiles);
+    int32 TotalTiles = GridWidth * GridHeight;
+    FVector ManagerLocation = GetActorLocation();
 
-	FloorISM->ClearInstances();
-	ObstacleISM->ClearInstances();
-	StartISM->ClearInstances();
-	EndISM->ClearInstances();
+    bool bIsValidMap = false;
+    int32 SafetyCounter = 0;
 
-	FVector ManagerLocation = GetActorLocation();
+    // 💡 1. 길이 뚫린 맵이 나올 때까지 반복해서 맵 데이터를 생성합니다.
+    while (!bIsValidMap && SafetyCounter < 100)
+    {
+        SafetyCounter++;
 
-	for (int32 Y = 0; Y < GridHeight; ++Y)
-	{
-		for (int32 X = 0; X < GridWidth; ++X)
-		{
-			int32 Index = GetIndex(X, Y);
-			FGridInfo& Node = GridArray[Index];
+        // 배열 초기화
+        GridArray.Empty();
+        GridArray.SetNum(TotalTiles);
 
-			Node.X = X;
-			Node.Y = Y;
-          
-			// 메시 피벗이 중앙일 때: (X * TileSize)가 타일의 중심
-			Node.WorldPosition = ManagerLocation + FVector(X * TileSize, Y * TileSize, 0.f);
+        // 메모리 상에서만 맵 데이터 생성 (화면엔 아직 안 그림)
+        for (int32 Y = 0; Y < GridHeight; ++Y)
+        {
+            for (int32 X = 0; X < GridWidth; ++X)
+            {
+                int32 Index = GetIndex(X, Y);
+                FGridInfo& Node = GridArray[Index];
 
-			if (X == 0 && Y == 0) Node.TileType = ETileType::Start;
-			else if (X == GridWidth - 1 && Y == GridHeight - 1) Node.TileType = ETileType::End;
-			else if (FMath::FRandRange(0.f, 100.f) < 15.f) Node.TileType = ETileType::Rock;
-			else Node.TileType = ETileType::Empty;
+                Node.X = X;
+                Node.Y = Y;
+                Node.WorldPosition = ManagerLocation + FVector(X * TileSize, Y * TileSize, 0.f);
 
-			Node.bIsWalkable = (Node.TileType != ETileType::Rock);
+                if (X == 0 && Y == 0) Node.TileType = ETileType::Start;
+                else if (X == GridWidth - 1 && Y == GridHeight - 1) Node.TileType = ETileType::End;
+                else if (FMath::FRandRange(0.f, 100.f) < 15.f) Node.TileType = ETileType::Rock;
+                else Node.TileType = ETileType::Empty;
 
-			FVector RelativePos = FVector(X * TileSize, Y * TileSize, 0.f);
-			FTransform TileTransform(RelativePos); 
+                Node.bIsWalkable = (Node.TileType != ETileType::Rock);
+            }
+        }
 
-			switch (Node.TileType)
-			{
-			case ETileType::Empty:    FloorISM->AddInstance(TileTransform); break;
-			case ETileType::Rock:     ObstacleISM->AddInstance(TileTransform); break;
-			case ETileType::Start:    StartISM->AddInstance(TileTransform); break;
-			case ETileType::End:      EndISM->AddInstance(TileTransform); break;
-			}
-		}
-	}
+        // 플로우 필드를 돌려봅니다.
+        UpdateFlowField();
 
-	if (SpawnerClass)
-	{
-		FVector StartLoc = GridArray[GetIndex(0, 0)].WorldPosition;
-		StartLoc.Z += 500.f; 
-		FActorSpawnParameters SpawnParams;
-		SpawnParams.Owner = this;
+        // 💡 2. 검증: 스포너(0,0) 위치에서 출구까지 갈 길이 있는가?
+        if (GridArray[GetIndex(0, 0)].FlowCost < 99999)
+        {
+            bIsValidMap = true; // 합격! 루프를 탈출합니다.
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("길이 막힌 맵 생성됨! 재시도 중... (시도 횟수: %d)"), SafetyCounter);
+        }
+    }
 
-		ActiveSpawner = GetWorld()->SpawnActor<AEnemySpawner>(SpawnerClass, StartLoc, FRotator::ZeroRotator, SpawnParams);
+    // 💡 3. 검증을 통과한 '완벽한 맵'을 드디어 화면에 그립니다.
+    FloorISM->ClearInstances();
+    ObstacleISM->ClearInstances();
+    StartISM->ClearInstances();
+    EndISM->ClearInstances();
 
-		if (ActiveSpawner)
-		{
-			FVector EndLoc = GridArray[GetIndex(GridWidth - 1, GridHeight - 1)].WorldPosition;
+    for (int32 Y = 0; Y < GridHeight; ++Y)
+    {
+        for (int32 X = 0; X < GridWidth; ++X)
+        {
+            int32 Index = GetIndex(X, Y);
+            FGridInfo& Node = GridArray[Index];
 
-			ActiveSpawner->SetTargetLocation(EndLoc);
-		}
-	}
+            FVector RelativePos = FVector(X * TileSize, Y * TileSize, 0.f);
+            FTransform TileTransform(RelativePos); 
 
-	if (NexusClass)
-	{
-		FVector NexusLoc = GridArray[GetIndex(GridWidth - 1, GridHeight - 1)].WorldPosition;
-		NexusLoc.Z += 500.f;
+            switch (Node.TileType)
+            {
+                case ETileType::Empty:    FloorISM->AddInstance(TileTransform); break;
+                case ETileType::Rock:     ObstacleISM->AddInstance(TileTransform); break;
+                case ETileType::Start:    StartISM->AddInstance(TileTransform); break;
+                case ETileType::End:      EndISM->AddInstance(TileTransform); break;
+            }
+        }
+    }
 
-		ANexus* SpawnedNexus = GetWorld()->SpawnActor<ANexus>(NexusClass, NexusLoc, FRotator::ZeroRotator);
-	}
+    // 4. 스포너와 넥서스 생성 (기존 코드 그대로)
+    if (SpawnerClass)
+    {
+       FVector StartLoc = GridArray[GetIndex(0, 0)].WorldPosition;
+       StartLoc.Z += 500.f; 
+       FActorSpawnParameters SpawnParams;
+       SpawnParams.Owner = this;
 
-	UpdateFlowField();
+       ActiveSpawner = GetWorld()->SpawnActor<AEnemySpawner>(SpawnerClass, StartLoc, FRotator::ZeroRotator, SpawnParams);
+
+       if (ActiveSpawner)
+       {
+          FVector EndLoc = GridArray[GetIndex(GridWidth - 1, GridHeight - 1)].WorldPosition;
+          ActiveSpawner->SetTargetLocation(EndLoc);
+       }
+    }
+
+    if (NexusClass)
+    {
+       FVector NexusLoc = GridArray[GetIndex(GridWidth - 1, GridHeight - 1)].WorldPosition;
+       NexusLoc.Z += 500.f;
+
+       ANexus* SpawnedNexus = GetWorld()->SpawnActor<ANexus>(NexusClass, NexusLoc, FRotator::ZeroRotator);
+    }
+    
+    // 💡 주의: UpdateFlowField(); 는 이미 while문 안에서 마지막으로 합격했을 때 불렸으므로, 여기서 또 부를 필요가 없습니다!
 }
 
 void AGridManager::AddTower(int32 X, int32 Y, UTowerData* SelectedData)
@@ -249,20 +289,10 @@ void AGridManager::AddTower(int32 X, int32 Y, UTowerData* SelectedData)
 	GridArray[Index].bIsWalkable = false;
 
 	UpdateFlowField();
-
-	// A* 알고리즘 용 변수
-	/*int32 SpawnerX = 0;
-	int32 SpawnerY = 0;
-	int32 NexusX = GridWidth - 1; 
-	int32 NexusY = GridHeight - 1; 
-
-	TArray<FIntPoint> DummyPath; 
-    
-	bool bIsPathClear = FindPath(SpawnerX, SpawnerY, NexusX, NexusY, DummyPath);*/
+	
 	int32 SpawnerIndex = GetIndex(0, 0);
 	bool bIsPathClear = (GridArray[SpawnerIndex].FlowCost < 99999);
 
-	//GridArray[Index].bIsWalkable = true;
 
 	if (!bIsPathClear)
 	{
@@ -296,19 +326,7 @@ void AGridManager::AddTower(int32 X, int32 Y, UTowerData* SelectedData)
 
 	GridArray[Index].TileType = ETileType::Tower;
 	GridArray[Index].bIsWalkable = false; 
-
-	/*TArray<AActor*> FoundEnemies;
-	UGameplayStatics::GetAllActorsOfClass(GetWorld(), AEnemyBase::StaticClass(), FoundEnemies);
-
-	for (AActor* Actor : FoundEnemies)
-	{
-		AEnemyBase* Enemy = Cast<AEnemyBase>(Actor);
-        
-		if (Enemy && !Enemy->IsDead())
-		{
-			Enemy->RecalculatePath(); 
-		}
-	}*/
+	
 	UpdateFlowField();
 	
 	UE_LOG(LogTemp, Warning, TEXT("타워 건설 완료: 모든 몬스터의 경로를 갱신합니다."));
@@ -320,14 +338,6 @@ bool AGridManager::bIsTileBuildable(int32 X, int32 Y) const
 	if (!GridArray.IsValidIndex(Index)) return false;
 	return GridArray[Index].TileType == ETileType::Empty;
 }
-
-/*int32 AGridManager::GetDistance(int32 NodeAX, int32 NodeAY, int32 NodeBX, int32 NodeBY)
-{
-	int32 X = FMath::Abs(NodeAX - NodeBX);
-	int32 Y = FMath::Abs(NodeAY - NodeBY);
-
-	return (X + Y) * 10;
-}*/
 
 TArray<FIntPoint> AGridManager::GetWalkableNeighbors(int32 X, int32 Y)
 {
@@ -353,109 +363,26 @@ TArray<FIntPoint> AGridManager::GetWalkableNeighbors(int32 X, int32 Y)
 	return Neighbors;
 }
 
-/*
-bool AGridManager::FindPath(int32 StartX, int32 StartY, int32 EndX, int32 EndY, TArray<FIntPoint>& OutPath)
+void AGridManager::DrawDebugFlowField()
 {
-    if (!GridArray.IsValidIndex(GetIndex(StartX, StartY)) || !GridArray.IsValidIndex(GetIndex(EndX, EndY))) return false;
-
-// 💡 여기서부터 A* 알고리즘 로직 비활성화 (나중에 비교를 위해 보존)
-#if 0 
-    TArray<FAStarNode*> OpenList; // 앞으로 볼 노드
-    TArray<FIntPoint> ClosedList; // 방문한 노드
-    TArray<FAStarNode*> AllNodes;
-
-    FAStarNode* StartNode = new FAStarNode(StartX, StartY);
-    AllNodes.Add(StartNode);
-    OpenList.Add(StartNode);
-
-    while (OpenList.Num() > 0)
-    {
-       FAStarNode* CurrentNode = OpenList[0];
-       int32 CurrentIndex = 0;
-
-       for (int32 i = 1; i < OpenList.Num(); ++i)
-       {
-          if (OpenList[i]->FCost < CurrentNode->FCost || (OpenList[i]->FCost == CurrentNode->FCost && OpenList[i]->HCost < CurrentNode->HCost))
-          {
-             CurrentNode = OpenList[i];
-             CurrentIndex = i;
-          }
-       }
-
-       OpenList.RemoveAt(CurrentIndex);
-    
-       ClosedList.Add(FIntPoint(CurrentNode->X, CurrentNode->Y));
-
-       // 도착지 확인
-       if (CurrentNode->X == EndX && CurrentNode->Y == EndY)
-       {
-          OutPath.Empty();
-          FAStarNode* TraceNode = CurrentNode;
-          while (TraceNode != nullptr)
-          {
-             OutPath.Add(FIntPoint(TraceNode->X, TraceNode->Y));
-             TraceNode = TraceNode->ParentNode;
-          }
-
-          Algo::Reverse(OutPath);
-          
-          for (auto Node : AllNodes)
-          {
-             delete Node;
-          }
-          return true;
-       }
-
-       TArray<FIntPoint> Neighbors = GetWalkableNeighbors(CurrentNode->X, CurrentNode->Y);
-
-       for (auto Neighbor : Neighbors)
-       {
-          if (ClosedList.Contains(Neighbor))
-          {
-             continue;
-          }
-
-          int32 NewGCost = CurrentNode->GCost + GetDistance(CurrentNode->X, CurrentNode->Y, Neighbor.X, Neighbor.Y);
-
-          FAStarNode* NeighborNode = nullptr;
-
-          for (FAStarNode* Node : OpenList)
-          {
-             if (Node->X == Neighbor.X && Node->Y == Neighbor.Y)
-             {
-                NeighborNode = Node;
-                break;
-             }
-          }
-
-          if (NeighborNode == nullptr || NewGCost < NeighborNode->GCost)
-          {
-             if (NeighborNode == nullptr)
-             {
-                NeighborNode = new FAStarNode(Neighbor.X, Neighbor.Y);
-                AllNodes.Add(NeighborNode);
-                OpenList.Add(NeighborNode);
-             }
-
-             // G 최신화
-             NeighborNode->GCost = NewGCost;
-             // H 계산
-             NeighborNode->HCost = GetDistance(NeighborNode->X, NeighborNode->Y, EndX, EndY);
-             // F 계산 (G + H)
-             NeighborNode->FCost = NeighborNode->GCost + NeighborNode->HCost;
-             
-             NeighborNode->ParentNode = CurrentNode;
-          }
-       }
-    }
-
-    for (auto Node : AllNodes)
-    {
-       delete Node;
-    }
-#endif
-
-    // 플로우 필드를 완성하기 전까지 임시로 true를 반환하여 에러 방지
-    return true; 
+	// 1. 모든 타일을 하나씩 검사합니다.
+	for (const FGridInfo& Info : GridArray)
+	{
+		// 2. 방향 값이 있는 타일만 골라냅니다 (벽이나 목적지는 제외)
+		if (!Info.FlowDirection.IsZero())
+		{
+			// 3. 언리얼 엔진의 '화살표 그리기' 기능을 실행합니다.
+			DrawDebugDirectionalArrow(
+				GetWorld(), 
+				Info.WorldPosition, // 화살표 시작점 (타일 중심)
+				Info.WorldPosition + (Info.FlowDirection * 50.f), // 화살표 끝점 (방향대로 50cm 뻗음)
+				20.f,               // 화살촉 크기
+				FColor::Yellow,     // 색깔 (노란색)
+				false,              // 영구 지속 여부 (false면 금방 사라짐)
+				10.f,               // 지속 시간 (-1은 보통 1프레임)
+				0,                  // 우선순위
+				2.f                 // 선 두께
+			);
+		}
+	}
 }
-*/

@@ -88,7 +88,8 @@ void AEnemyBase::InitializeStats()
 			GetCharacterMovement()->MaxWalkSpeed = Data->MoveSpeed;
 
 			BaseMoveSpeed = Data->MoveSpeed; 
-
+			MyGoldReward = Data->GoldReward;
+			
 			if (Data->EnemyMesh)
 			{
 				GetMesh()->SetSkeletalMesh(Data->EnemyMesh);
@@ -112,7 +113,6 @@ float AEnemyBase::TakeDamage(float DamageAmount, struct FDamageEvent const& Dama
 	float ActualDamage = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
 
 	CurrentHP -= ActualDamage;
-	UE_LOG(LogTemp, Warning, TEXT("[%s] 남은 체력: %f"), *GetName(), CurrentHP);
 
 	OnHPChanged.Broadcast(CurrentHP, MaxHP);
 	if (CurrentHP <= 0.f)
@@ -133,7 +133,7 @@ void AEnemyBase::Die()
 	AGridGameMode* GM = Cast<AGridGameMode>(UGameplayStatics::GetGameMode(GetWorld()));
 	if (GM)
 	{
-		GM->AddGold(10);
+		GM->AddGold(MyGoldReward);
 	}
 	SetActorEnableCollision(false);
 	if (HPBarWidget)

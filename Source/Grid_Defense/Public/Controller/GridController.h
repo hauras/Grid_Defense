@@ -21,15 +21,15 @@ public:
 	AGridController();
 
 	void CursorTrace();
+
+	UFUNCTION(BlueprintCallable, Category = "Build")
+	void SetSelectedTower(UTowerData* NewData);
 protected:
 	virtual void BeginPlay() override;
 	virtual void PlayerTick(float DeltaTime) override;
 	virtual void SetupInputComponent() override;
 	
 	void OnMouseClick();
-
-	UFUNCTION(BlueprintCallable, Category = "Build")
-	void SetSelectedTower(UTowerData* NewData);
 	
 	UPROPERTY(EditAnywhere, Category = "Input")
 	TObjectPtr<class UInputMappingContext> DefaultMappingContext;

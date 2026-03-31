@@ -25,6 +25,18 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat")
     float MoveSpeed = 800.f;
 
+    // 💡 추가 1: 돈 보상
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat")
+    int32 GoldReward = 10;
+
+    // 💡 추가 2: 기지 공격력 (목숨 깎는 양)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat")
+    int32 LifeDamage = 1;
+
+    // 💡 추가 3: 타겟팅 중요도 (기본값 1, 보스는 5)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat")
+    float TargetingWeight = 1.0f;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Visual")
     USkeletalMesh* EnemyMesh;
 };
@@ -60,6 +72,12 @@ public:
     FGameplayTagContainer GameplayTags;
 
     void ApplySlow(float SlowDuration);
+
+    UFUNCTION(BlueprintCallable, Category = "Status")
+    float GetCurrentHP() const { return CurrentHP; }
+
+    UFUNCTION(BlueprintCallable, Category = "Status")
+    float GetMaxHP() const { return MaxHP; }
     
 protected:
     virtual void BeginPlay() override;
@@ -93,6 +111,8 @@ protected:
     
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation", meta = (AllowPrivateAccess = "true"))
     TObjectPtr<UAnimMontage> DeathMontage;
+
+    int32 MyGoldReward = 0;
     
 private:
     void RemoveSlow();

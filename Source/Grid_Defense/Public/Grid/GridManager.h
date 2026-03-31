@@ -90,11 +90,12 @@ public:
     // 💡 [유틸리티] 몬스터의 실제 월드 위치(FVector)를 그리드 타일 좌표(X, Y)로 변환해 줍니다.
     FIntPoint GetGridPointFromWorld(FVector WorldLocation) const;
 
+	UFUNCTION(BlueprintCallable, Category = "FlowField")
+	int32 GetFlowCost(FVector WorldLocation) const;
 protected:
     virtual void BeginPlay() override;
     void GenerateGrid();
 
-    // =====================================
     UPROPERTY(EditAnywhere, Category = "Grid")
     TSubclassOf<AEnemySpawner> SpawnerClass;
 
@@ -104,19 +105,14 @@ protected:
     AEnemySpawner* ActiveSpawner;
 
 private:
-    // =====================================
-    // =====================================
+	
     TArray<FGridInfo> GridArray;
 
-// 💡 A* 전용 휴리스틱 거리 계산 함수 봉인!
-#if 0
-    int32 GetDistance(int32 NodeAX, int32 NodeAY, int32 NodeBX, int32 NodeBY);
-#endif
 
-    // 💡 BFS에서도 내 상하좌우 타일을 찾을 때 필요하므로 이 함수는 그대로 살려둡니다!
+	void DrawDebugFlowField();
+	
     TArray<FIntPoint> GetWalkableNeighbors(int32 X, int32 Y);
 
-    // 컴포넌트 숨기기 (AllowPrivateAccess 덕분에 블루프린트나 에디터에선 여전히 보임!)
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
     UInstancedStaticMeshComponent* FloorISM;
 

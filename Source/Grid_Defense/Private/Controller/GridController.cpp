@@ -18,9 +18,9 @@ void AGridController::BeginPlay()
 {
 	Super::BeginPlay();
 
-	FInputModeGameOnly InputModeData; 
+	FInputModeGameAndUI InputModeData; 
+	InputModeData.SetHideCursorDuringCapture(false); // 드래그할 때 커서 숨김 방지
 	SetInputMode(InputModeData);
-	bShowMouseCursor = true;
 
 	GridManager = Cast<AGridManager>(UGameplayStatics::GetActorOfClass(GetWorld(), AGridManager::StaticClass()));
 
@@ -162,18 +162,14 @@ bool AGridController::GetGridLocationUnderCursor(int32& OutX, int32& OutY)
 	FHitResult CursorHit;
 	if (GetHitResultUnderCursor(ECC_Visibility, true, CursorHit))
 	{
-		// 1. 그리드 매니저의 위치로부터 얼마나 떨어졌나 계산
 		FVector RelativeLocation = CursorHit.ImpactPoint - GridManager->GetActorLocation();
        
-		// 💡 수정 포인트: 변수에 직접 접근하지 말고 Getter 함수를 호출하세요!
 		float TileSize = GridManager->GetTileSize(); // 이 Getter를 GridManager에 추가해야겠네요!
 		float HalfTile = TileSize * 0.5f;
 
-		// 2. 상대 좌표를 타일 인덱스(X, Y)로 변환
 		OutX = FMath::FloorToInt((RelativeLocation.X + HalfTile) / TileSize);
 		OutY = FMath::FloorToInt((RelativeLocation.Y + HalfTile) / TileSize);
 
-		// 💡 수정 포인트: Width와 Height도 Getter를 통해서 가져옵니다!
 		return (OutX >= 0 && OutX < GridManager->GetGridWidth() && 
 				OutY >= 0 && OutY < GridManager->GetGridHeight());
 	}

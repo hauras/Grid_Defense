@@ -6,6 +6,15 @@
 #include "GameFramework/Actor.h"
 #include "TowerBase.generated.h"
 
+class AGridManager;
+
+UENUM(BlueprintType)
+enum class ETargetPriority  : uint8
+{
+	First UMETA(DisplayName = "First (Closest to Nexus"),
+	Strong,
+	Weak,
+};
 class APoolManager;
 class AProjectileBase;
 
@@ -54,4 +63,10 @@ protected:
 
 	UPROPERTY()
 	TObjectPtr<APoolManager> CachedPoolManager;
+
+	UPROPERTY()
+	TObjectPtr<AGridManager> CachedGridManager;
+
+	UPROPERTY(EditAnywhere, Category = "Tower")
+	ETargetPriority TargetPriority = ETargetPriority::First;
 };

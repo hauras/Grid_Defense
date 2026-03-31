@@ -5,6 +5,7 @@
 #include "Components/DecalComponent.h"
 #include "Projectile/ProjectileBase.h"
 #include "Enemy/EnemyBase.h"
+#include "Grid/GridManager.h"
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h" 
 #include "Projectile/PoolManager.h"
@@ -80,33 +81,26 @@ void ATowerBase::BeginPlay()
 	{
 		UE_LOG(LogTemp, Error, TEXT("[%s] 풀 매니저를 찾을 수 없습니다! 맵에 배치했는지 확인하세요."), *GetName());
 	}
+	CachedGridManager = Cast<AGridManager>(UGameplayStatics::GetActorOfClass(GetWorld(), AGridManager::StaticClass()));
+	
 }
 
 void ATowerBase::FindTarget()
 {
-    if (!MyData) return;
+    if (!MyData || !CachedGridManager) return;
     
     if (CurrentTarget)
     {
         AEnemyBase* EnemyTarget = Cast<AEnemyBase>(CurrentTarget);
         
-        if (!EnemyTarget || EnemyTarget->IsDead())
+    	if (!EnemyTarget || EnemyTarget->IsDead() || FVector::Dist2D(GetActorLocation(), CurrentTarget->GetActorLocation()) > MyData->AttackRange)
         {
             CurrentTarget = nullptr;
         }
         else
         {
-            float Distance2D = FVector::Dist2D(GetActorLocation(), CurrentTarget->GetActorLocation());
-            
-            if (Distance2D <= MyData->AttackRange)
-            {
-                Fire();
-                return;
-            }
-            else
-            {
-                CurrentTarget = nullptr;
-            }
+        	Fire();
+        	return;
         }
     }
 
@@ -128,25 +122,62 @@ void ATowerBase::FindTarget()
        OverlappedActors
     );
 
-    if (bHit && OverlappedActors.Num() > 0)
-    {
-       for (AActor* Actor : OverlappedActors)
-       {
-          AEnemyBase* Enemy = Cast<AEnemyBase>(Actor);
-            
-          if (Enemy && !Enemy->IsDead()) 
-          {
-             float Dist2D = FVector::Dist2D(GetActorLocation(), Enemy->GetActorLocation());
-             
-             if (Dist2D <= MyData->AttackRange)
-             {
-                CurrentTarget = Enemy; 
-                Fire();               
-                break; 
-             }
-          }
-       }
-    }
+    if (bHit && OverlappedActors.Num() > 0) return;
+
+	AEnemyBase* BestTarget = nullptr;
+	int32 MinFlowCost = 999999;     // First 모드용
+	float MaxHP = -1.0f;           // Strong 모드용
+	float MinHP = 999999.f;
+
+	for (AActor* Actor : OverlappedActors)
+	{
+		AEnemyBase* Enemy = Cast<AEnemyBase>(Actor);
+		if (!Enemy || Enemy->IsDead()) continue;
+
+		switch (TargetPriority) // 헤더에 만든 Enum
+		{
+		case ETargetPriority::First:
+			{
+				int32 EnemyCost = CachedGridManager->GetFlowCost(Enemy->GetActorLocation());
+				if (EnemyCost < MinFlowCost)
+				{
+					MinFlowCost = EnemyCost;
+					BestTarget = Enemy;
+				}
+			}
+			break;
+
+		case ETargetPriority::Strong:
+			{
+				if (Enemy->GetCurrentHP() > MaxHP)
+				{
+					MaxHP = Enemy->GetCurrentHP();
+					BestTarget = Enemy;
+				}
+			}
+			break;
+
+		case ETargetPriority::Weak:
+			{
+				if (Enemy->GetCurrentHP() < MinHP)
+				{
+					MinHP = Enemy->GetCurrentHP();
+					BestTarget = Enemy;
+				}
+			}
+			break;
+		}
+	}
+
+	// 4. 타겟 확정 및 발사
+	if (BestTarget)
+	{
+		CurrentTarget = BestTarget;
+		Fire();
+	}
+  
+       
+    
 }
 
 void ATowerBase::Fire()
