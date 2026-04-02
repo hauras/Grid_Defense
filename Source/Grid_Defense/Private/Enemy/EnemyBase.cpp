@@ -9,7 +9,11 @@
 #include "GameMode/GridGameMode.h"
 #include "Grid/GridManager.h"
 #include "Kismet/GameplayStatics.h"
+#include "Projectile/ProjectileBase.h"
+#include "Tower/TowerBase.h"
 #include "UI/Widget/EnemyHPWidget.h"
+#include "UI/DamageText/DamageTextComponent.h"
+#include "TimerManager.h"
 
 AEnemyBase::AEnemyBase()
 {
@@ -23,12 +27,27 @@ AEnemyBase::AEnemyBase()
 	{
 		GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
 	}
+
+	DamageTextComp = CreateDefaultSubobject<UDamageTextComponent>(TEXT("DamageTextComp"));
+	DamageTextComp->SetupAttachment(RootComponent);
+	DamageTextComp->SetRelativeLocation(FVector(0.f, 0.f, 100.f)); 
+	DamageTextComp->SetWidgetSpace(EWidgetSpace::Screen);
+	DamageTextComp->SetDrawSize(FVector2D(200.f, 50.f));
 }
 
 void AEnemyBase::InitializeEnemy(FName InRowName)
 {
 	EnemyDataRowName = InRowName; 
 	InitializeStats();
+}
+
+void AEnemyBase::ResetDamageText()
+{
+	AccumulatedDamage = 0.0f;
+	if (DamageTextComp)
+	{
+		DamageTextComp->HideDamageText();
+	}
 }
 
 void AEnemyBase::BeginPlay()
@@ -47,6 +66,8 @@ void AEnemyBase::BeginPlay()
 			HPWidget->UpdateHP(CurrentHP, MaxHP);
 		}
 	}
+
+	ResetDamageText();
 }
 
 void AEnemyBase::Tick(float DeltaTime)
@@ -55,22 +76,14 @@ void AEnemyBase::Tick(float DeltaTime)
 
 	if (bIsDead || !CachedGridManager) return;
 
-	// 1. 현재 내 위치의 화살표 방향을 물어본다
 	FVector MoveDirection = CachedGridManager->GetFlowDirection(GetActorLocation());
 
-	// 2. 화살표가 있다면 그 방향으로 이동!
 	if (!MoveDirection.IsZero())
 	{
 		AddMovementInput(MoveDirection, 1.0f);
 
-		// 몬스터가 이동 방향을 부드럽게 바라보게 하고 싶다면?
 		FRotator TargetRot = MoveDirection.Rotation();
 		SetActorRotation(FMath::RInterpTo(GetActorRotation(), TargetRot, DeltaTime, 5.f));
-	}
-	else
-	{
-		// 💡 방향이 ZeroVector라는 건 넥서스에 도착했다는 뜻일 확률이 높음!
-		// 여기서 넥서스 공격 로직이나 파괴 로직을 넣으면 됩니다.
 	}
 }
 
@@ -89,6 +102,7 @@ void AEnemyBase::InitializeStats()
 
 			BaseMoveSpeed = Data->MoveSpeed; 
 			MyGoldReward = Data->GoldReward;
+			this->EnemyTags = Data->EnemyTags;
 			
 			if (Data->EnemyMesh)
 			{
@@ -104,23 +118,75 @@ void AEnemyBase::SetPath(const TArray<FVector>& NewPath)
 	CurrentIndex = 0;
 }
 
-// 데미지 적용
 float AEnemyBase::TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent,
-                             class AController* EventInstigator, AActor* DamageCauser)
+                       class AController* EventInstigator, AActor* DamageCauser)
 {
-	if (bIsDead) return 0.f;
-	
-	float ActualDamage = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+    if (bIsDead) return 0.f;
 
-	CurrentHP -= ActualDamage;
+    const FGridGameplayTags& GridTags = FGridGameplayTags::Get();
+    FGameplayTag AttackTag = FGameplayTag::EmptyTag;
 
-	OnHPChanged.Broadcast(CurrentHP, MaxHP);
-	if (CurrentHP <= 0.f)
-	{
-		Die();
-	}
+    if (AProjectileBase* Projectile = Cast<AProjectileBase>(DamageCauser))
+    {
+       AttackTag = Projectile->DamageTag;
+    }
+    else if (ATowerBase* Tower = Cast<ATowerBase>(DamageCauser))
+    {
+       AttackTag = Tower->TowerDamageTag;
+    }
 
-	return ActualDamage;
+    // ==========================================
+    // 🌟 [수정된 부분] 상성에 따른 데미지 배율 및 색상 결정
+    // ==========================================
+    float DamageMultiplier = 1.0f;
+    FLinearColor TextColor = FLinearColor::White; // 기본 색상 (비상성)
+
+    if (AttackTag.IsValid())
+    {
+       // 🔥 자연 속성 몬스터가 불 공격을 받았을 때 (1.5배)
+       if (EnemyTags.HasTagExact(GridTags.Enemy_Nature) && AttackTag.MatchesTagExact(GridTags.Damage_Fire))
+       {
+          DamageMultiplier = 1.5f;
+          TextColor = FLinearColor::Red; // 불 약점: 빨간색
+       }
+       // ⚡ 물 속성 몬스터가 전기 공격(라이트닝 타워)을 받았을 때 (2.0배)
+       else if (EnemyTags.HasTagExact(GridTags.Enemy_Water) && AttackTag.MatchesTagExact(GridTags.Damage_Lightning))
+       {
+          DamageMultiplier = 2.0f;
+          TextColor = FLinearColor::Yellow; // 전기 약점: 노란색
+       }
+    }
+
+    // 공격 반감(역상성)이 있다면 회색으로 처리
+    if (DamageMultiplier < 1.0f)
+    {
+        TextColor = FLinearColor::Gray; 
+    }
+
+    float FinalDamage = DamageAmount * DamageMultiplier;
+    
+    AccumulatedDamage += FinalDamage;
+
+    if (DamageTextComp)
+    {
+        DamageTextComp->SetDamageText(AccumulatedDamage, TextColor);
+    }
+
+    // 3. 타이머 갱신 (1.5초 동안 안 맞으면 누적 초기화 및 글자 숨김)
+    GetWorldTimerManager().ClearTimer(DamageTextTimerHandle);
+    GetWorldTimerManager().SetTimer(DamageTextTimerHandle, this, &AEnemyBase::ResetDamageText, 1.5f, false);
+    
+    // ==========================================
+
+    CurrentHP -= FinalDamage;
+
+    OnHPChanged.Broadcast(CurrentHP, MaxHP);
+    if (CurrentHP <= 0.f)
+    {
+       Die();
+    }
+
+    return FinalDamage;
 }
 
 void AEnemyBase::Die()

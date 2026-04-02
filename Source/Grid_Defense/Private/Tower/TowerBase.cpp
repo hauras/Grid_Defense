@@ -122,7 +122,7 @@ void ATowerBase::FindTarget()
        OverlappedActors
     );
 
-    if (bHit && OverlappedActors.Num() > 0) return;
+	if (!bHit || OverlappedActors.Num() == 0) return;
 
 	AEnemyBase* BestTarget = nullptr;
 	int32 MinFlowCost = 999999;     // First 모드용

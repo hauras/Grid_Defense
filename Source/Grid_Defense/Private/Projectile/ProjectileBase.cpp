@@ -105,11 +105,23 @@ void AProjectileBase::FireAtTarget(AActor* TargetActor)
 		if (AEnemyBase* Enemy = Cast<AEnemyBase>(TargetActor))
 		{
 			Enemy->OnEnemyDied.AddUniqueDynamic(this, &AProjectileBase::OnTargetDied);
-          
 			CachedTarget = Enemy;
 		}
 
-		FVector Direction = (TargetActor->GetActorLocation() - GetActorLocation()).GetSafeNormal();
+		// 💡 [예측 사격 로직]
+		// 1. 타겟의 현재 위치와 이동 속도(방향 포함)를 가져옵니다.
+		FVector TargetLocation = TargetActor->GetActorLocation();
+		FVector TargetVelocity = TargetActor->GetVelocity();
+
+		// 2. 총알이 타겟까지 날아가는 데 걸리는 시간(t)을 계산합니다. (시간 = 거리 / 속력)
+		float Distance = FVector::Dist(GetActorLocation(), TargetLocation);
+		float FlightTime = Distance / ProjectileMovement->InitialSpeed;
+
+		// 3. 타겟의 미래 위치를 계산합니다.
+		FVector PredictedLocation = TargetLocation + (TargetVelocity * FlightTime);
+
+		// 4. 미래 위치를 향해 방향을 잡고 쏩니다!
+		FVector Direction = (PredictedLocation - GetActorLocation()).GetSafeNormal();
 		FireInDirection(Direction);
 	}
 }
@@ -138,7 +150,21 @@ void AProjectileBase::ReturnToManager()
 	{
 		ProjectileComponent->Deactivate();
 	}
-	
+    
+	// ==========================================
+	// 🌟 [여기에 추가!] 공장에 들어갈 땐 충돌을 꺼야 두 번 안 때리고, 서로 안 부딪힙니다!
+	// ==========================================
+	if (Collision)
+	{
+		Collision->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
+    
+	if (MeshComponent)
+	{
+		MeshComponent->SetVisibility(false); // 혹시 모르니 메쉬도 숨겨주면 완벽합니다.
+	}
+	// ==========================================
+
 	if (CachedPoolManager)
 	{
 		CachedPoolManager->ReturnToPool(this);
@@ -148,7 +174,6 @@ void AProjectileBase::ReturnToManager()
 		Destroy();
 	}
 }
-
 
 void AProjectileBase::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp,
 							FVector NormalImpulse, const FHitResult& Hit)

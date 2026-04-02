@@ -6,6 +6,7 @@
 #include "GameplayTagContainer.h"    
 #include "EnemyBase.generated.h"
 
+class UDamageTextComponent;
 class AGridManager;
 class UWidgetComponent;
 
@@ -39,6 +40,9 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Visual")
     USkeletalMesh* EnemyMesh;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tag")
+    FGameplayTagContainer EnemyTags;
 };
 
 UCLASS()
@@ -78,6 +82,17 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Status")
     float GetMaxHP() const { return MaxHP; }
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tag")
+    FGameplayTagContainer EnemyTags;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "UI")
+    TObjectPtr<UDamageTextComponent> DamageTextComp;
+
+    float AccumulatedDamage = 0.0f;
+    FTimerHandle DamageTextTimerHandle;
+
+    void ResetDamageText();
     
 protected:
     virtual void BeginPlay() override;

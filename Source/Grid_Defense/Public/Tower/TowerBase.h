@@ -4,6 +4,7 @@
 #include "CoreMinimal.h"
 #include "Data/TowerData.h"
 #include "GameFramework/Actor.h"
+#include "GameplayTagContainer.h" 
 #include "TowerBase.generated.h"
 
 class AGridManager;
@@ -28,6 +29,9 @@ public:
 
 	virtual void InitTower(UTowerData* TowerData, bool bIsPreview = false);
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
+	FGameplayTag TowerDamageTag;
+	
 protected:
 
 	virtual void BeginPlay() override;
