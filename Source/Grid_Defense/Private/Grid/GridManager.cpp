@@ -7,6 +7,7 @@
 #include "GameMode/GridGameMode.h"
 #include "Kismet/GameplayStatics.h"
 #include "Nexus/Nexus.h"
+#include "Save/GridSaveGame.h"
 
 AGridManager::AGridManager()
 {
@@ -164,7 +165,37 @@ int32 AGridManager::GetFlowCost(FVector WorldLocation) const
 void AGridManager::BeginPlay()
 {
 	Super::BeginPlay();
-	GenerateGrid();
+    
+	if (AGameModeBase* GameMode = GetWorld()->GetAuthGameMode())
+	{
+		FString Options = UGameplayStatics::ParseOption(GameMode->OptionsString, TEXT("LoadGame"));
+        
+		if (Options == TEXT("True"))
+		{
+			UGridSaveGame* LoadedGame = Cast<UGridSaveGame>(UGameplayStatics::LoadGameFromSlot(TEXT("Slot1"), 0));
+			if (LoadedGame)
+			{
+				LoadSavedGrid(LoadedGame->SavedMapLayout);
+
+				// 그 후 타워를 복구합니다.
+				for (const FTowerSaveData& SavedTower : LoadedGame->SavedTowers)
+				{
+					AddTower(SavedTower.GridX, SavedTower.GridY, SavedTower.TowerData, true);
+				}
+
+				AGridGameMode* GM = Cast<AGridGameMode>(UGameplayStatics::GetGameMode(GetWorld()));
+				if (GM)
+				{
+					GM->SetCurrentGold(LoadedGame->SavedGold); // Setter 사용! (UI 갱신까지 됨)
+					//GM->SetCurrentLife(LoadedGame->SavedLife); // Setter 사용! (UI 갱신까지 됨)
+				}
+				
+				return; 
+			}
+		}
+	}
+
+	GenerateGrid(); 
 }
 
 void AGridManager::GenerateGrid()
@@ -175,16 +206,13 @@ void AGridManager::GenerateGrid()
     bool bIsValidMap = false;
     int32 SafetyCounter = 0;
 
-    // 💡 1. 길이 뚫린 맵이 나올 때까지 반복해서 맵 데이터를 생성합니다.
     while (!bIsValidMap && SafetyCounter < 100)
     {
         SafetyCounter++;
 
-        // 배열 초기화
         GridArray.Empty();
         GridArray.SetNum(TotalTiles);
 
-        // 메모리 상에서만 맵 데이터 생성 (화면엔 아직 안 그림)
         for (int32 Y = 0; Y < GridHeight; ++Y)
         {
             for (int32 X = 0; X < GridWidth; ++X)
@@ -205,10 +233,8 @@ void AGridManager::GenerateGrid()
             }
         }
 
-        // 플로우 필드를 돌려봅니다.
         UpdateFlowField();
 
-        // 💡 2. 검증: 스포너(0,0) 위치에서 출구까지 갈 길이 있는가?
         if (GridArray[GetIndex(0, 0)].FlowCost < 99999)
         {
             bIsValidMap = true; // 합격! 루프를 탈출합니다.
@@ -219,7 +245,6 @@ void AGridManager::GenerateGrid()
         }
     }
 
-    // 💡 3. 검증을 통과한 '완벽한 맵'을 드디어 화면에 그립니다.
     FloorISM->ClearInstances();
     ObstacleISM->ClearInstances();
     StartISM->ClearInstances();
@@ -245,7 +270,6 @@ void AGridManager::GenerateGrid()
         }
     }
 
-    // 4. 스포너와 넥서스 생성 (기존 코드 그대로)
     if (SpawnerClass)
     {
        FVector StartLoc = GridArray[GetIndex(0, 0)].WorldPosition;
@@ -270,66 +294,85 @@ void AGridManager::GenerateGrid()
        ANexus* SpawnedNexus = GetWorld()->SpawnActor<ANexus>(NexusClass, NexusLoc, FRotator::ZeroRotator);
     }
     
-    // 💡 주의: UpdateFlowField(); 는 이미 while문 안에서 마지막으로 합격했을 때 불렸으므로, 여기서 또 부를 필요가 없습니다!
 }
 
-void AGridManager::AddTower(int32 X, int32 Y, UTowerData* SelectedData)
+void AGridManager::AddTower(int32 X, int32 Y, UTowerData* SelectedData, bool bIsLoading)
 {
 	if (!SelectedData) return;
     
 	int32 Index = GetIndex(X, Y);
 	if (!GridArray.IsValidIndex(Index)) return;
 
-	if (!bIsTileBuildable(X, Y))
+	if (!bIsLoading)
 	{
-		GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Red, TEXT("설치 불가: 이미 장애물이나 타워가 있습니다."));
-		return;
-	}
-	
-	GridArray[Index].bIsWalkable = false;
-
-	UpdateFlowField();
-	
-	int32 SpawnerIndex = GetIndex(0, 0);
-	bool bIsPathClear = (GridArray[SpawnerIndex].FlowCost < 99999);
-
-
-	if (!bIsPathClear)
-	{
-		GridArray[Index].bIsWalkable = true; // 다시 길 열어주기
-		UpdateFlowField(); // 필드 복구
-		GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Red, TEXT("설치 불가: 길이 막힙니다!"));
-		return;
-	}
-	
-	TSubclassOf<AActor> ClassToSpawn = SelectedData->TowerActorClass;
-	if (!ClassToSpawn) return;
-
-	AGridGameMode* GM = Cast<AGridGameMode>(UGameplayStatics::GetGameMode(GetWorld()));
-	if (GM)
-	{
-		int32 TowerCost = SelectedData->BuildCost;
-
-		if (!GM->SpendGold(TowerCost))
+		if (!bIsTileBuildable(X, Y))
 		{
-			GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Red, TEXT("잔액 부족! 타워를 건설할 수 없습니다."));
+			GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Red, TEXT("설치 불가: 이미 장애물이나 타워가 있습니다."));
 			return;
 		}
-	}
-	FVector SpawnLocation = GridArray[Index].WorldPosition + FVector(0.f, 0.f, 50.f);
-	AActor* SpawnedActor = GetWorld()->SpawnActor<AActor>(ClassToSpawn, SpawnLocation, FRotator::ZeroRotator);
 
-	if (ATowerBase* Tower = Cast<ATowerBase>(SpawnedActor))
-	{
-		Tower->InitTower(SelectedData, false); // 실제 타워 모드
+		// --- 길 막기 시뮬레이션 시작 ---
+		GridArray[Index].bIsWalkable = false; // 임시로 막음
+		UpdateFlowField(); // 경로 재계산
+
+		int32 SpawnerIndex = GetIndex(0, 0);
+		bool bIsPathClear = (GridArray[SpawnerIndex].FlowCost < 99999);
+
+		if (!bIsPathClear)
+		{
+			GridArray[Index].bIsWalkable = true; // 다시 길 열어주기
+			UpdateFlowField(); // 필드 복구
+			GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Red, TEXT("설치 불가: 드래곤의 길을 완전히 막을 수 없습니다!"));
+			return;
+		}
+		// --- 길 막기 시뮬레이션 끝 ---
+
+		// 골드 소모 체크
+		AGridGameMode* GM = Cast<AGridGameMode>(UGameplayStatics::GetGameMode(GetWorld()));
+		if (GM)
+		{
+			if (!GM->SpendGold(SelectedData->BuildCost))
+			{
+				// 돈이 부족하면 시뮬레이션으로 막았던 길을 다시 열어주고 취소
+				GridArray[Index].bIsWalkable = true;
+				UpdateFlowField();
+				GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Red, TEXT("잔액 부족! 타워를 건설할 수 없습니다."));
+				return;
+			}
+		}
 	}
 
+	// 2. [실제 데이터 확정] (공통 로직)
 	GridArray[Index].TileType = ETileType::Tower;
-	GridArray[Index].bIsWalkable = false; 
+	GridArray[Index].bIsWalkable = false;
+
+	// 3. [액터 스폰]
+	TSubclassOf<AActor> ClassToSpawn = SelectedData->TowerActorClass;
+	if (ClassToSpawn)
+	{
+		FVector SpawnLocation = GridArray[Index].WorldPosition + FVector(0.f, 0.f, 50.f);
+		
+		// 소환 시 충돌로 인해 실패하지 않도록 AlwaysSpawn 설정
+		FActorSpawnParameters SpawnParams;
+		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+		AActor* SpawnedActor = GetWorld()->SpawnActor<AActor>(ClassToSpawn, SpawnLocation, FRotator::ZeroRotator, SpawnParams);
+
+		if (ATowerBase* Tower = Cast<ATowerBase>(SpawnedActor))
+		{
+			Tower->InitTower(SelectedData, false); // 실제 타워로 작동
+
+			// 세이브를 위해 좌표 저장
+			Tower->GridX = X;
+			Tower->GridY = Y;
+		}
+	}
 	
-	UpdateFlowField();
-	
-	UE_LOG(LogTemp, Warning, TEXT("타워 건설 완료: 모든 몬스터의 경로를 갱신합니다."));
+	if (!bIsLoading)
+	{
+		UpdateFlowField();
+		UE_LOG(LogTemp, Warning, TEXT("[%d, %d] 타워 건설 완료 및 경로 업데이트."), X, Y);
+	}
 }
 
 bool AGridManager::bIsTileBuildable(int32 X, int32 Y) const
@@ -338,6 +381,7 @@ bool AGridManager::bIsTileBuildable(int32 X, int32 Y) const
 	if (!GridArray.IsValidIndex(Index)) return false;
 	return GridArray[Index].TileType == ETileType::Empty;
 }
+
 
 TArray<FIntPoint> AGridManager::GetWalkableNeighbors(int32 X, int32 Y)
 {
@@ -363,26 +407,96 @@ TArray<FIntPoint> AGridManager::GetWalkableNeighbors(int32 X, int32 Y)
 	return Neighbors;
 }
 
-void AGridManager::DrawDebugFlowField()
+void AGridManager::LoadSavedGrid(const TArray<ETileType>& SavedLayout)
 {
-	// 1. 모든 타일을 하나씩 검사합니다.
-	for (const FGridInfo& Info : GridArray)
-	{
-		// 2. 방향 값이 있는 타일만 골라냅니다 (벽이나 목적지는 제외)
-		if (!Info.FlowDirection.IsZero())
-		{
-			// 3. 언리얼 엔진의 '화살표 그리기' 기능을 실행합니다.
-			DrawDebugDirectionalArrow(
-				GetWorld(), 
-				Info.WorldPosition, // 화살표 시작점 (타일 중심)
-				Info.WorldPosition + (Info.FlowDirection * 50.f), // 화살표 끝점 (방향대로 50cm 뻗음)
-				20.f,               // 화살촉 크기
-				FColor::Yellow,     // 색깔 (노란색)
-				false,              // 영구 지속 여부 (false면 금방 사라짐)
-				10.f,               // 지속 시간 (-1은 보통 1프레임)
-				0,                  // 우선순위
-				2.f                 // 선 두께
-			);
-		}
-	}
+    // 1. 저장된 데이터가 없으면 탈출
+    if (SavedLayout.Num() == 0) return;
+
+    int32 TotalTiles = GridWidth * GridHeight;
+    FVector ManagerLocation = GetActorLocation();
+
+    // 2. 맵 배열 초기화
+    GridArray.Empty();
+    GridArray.SetNum(TotalTiles);
+
+    // 3. 저장된 타일 타입(바위, 길 등)을 그대로 복구
+    for (int32 i = 0; i < SavedLayout.Num(); ++i)
+    {
+        int32 X = i % GridWidth;
+        int32 Y = i / GridWidth;
+
+        FGridInfo& Node = GridArray[i];
+        Node.X = X;
+        Node.Y = Y;
+        Node.WorldPosition = ManagerLocation + FVector(X * TileSize, Y * TileSize, 0.f);
+        
+        // 🌟 저장된 타입을 그대로 꽂아 넣습니다!
+        Node.TileType = SavedLayout[i];
+
+        // 바위거나 타워가 있던 자리는 못 걷게 막아둡니다.
+        Node.bIsWalkable = (Node.TileType != ETileType::Rock && Node.TileType != ETileType::Tower);
+    }
+
+    // 4. 화면에 타일 비주얼(ISM) 다시 그리기
+    FloorISM->ClearInstances();
+    ObstacleISM->ClearInstances();
+    StartISM->ClearInstances();
+    EndISM->ClearInstances();
+
+    for (int32 Y = 0; Y < GridHeight; ++Y)
+    {
+        for (int32 X = 0; X < GridWidth; ++X)
+        {
+            int32 Index = GetIndex(X, Y);
+            FGridInfo& Node = GridArray[Index];
+
+            FVector RelativePos = FVector(X * TileSize, Y * TileSize, 0.f);
+            FTransform TileTransform(RelativePos); 
+
+            switch (Node.TileType)
+            {
+                case ETileType::Empty:    
+                case ETileType::Tower:    // 🌟 타워가 올라갈 자리도 일단 빈 땅(Floor)으로 깔아줍니다!
+                    FloorISM->AddInstance(TileTransform); 
+                    break;
+                case ETileType::Rock:     
+                    ObstacleISM->AddInstance(TileTransform); 
+                    break;
+                case ETileType::Start:    
+                    StartISM->AddInstance(TileTransform); 
+                    break;
+                case ETileType::End:      
+                    EndISM->AddInstance(TileTransform); 
+                    break;
+            }
+        }
+    }
+
+    // 5. 복구된 맵을 바탕으로 경로(FlowField) 업데이트
+    UpdateFlowField();
+
+    // 6. 스포너와 넥서스 다시 생성하기
+    if (SpawnerClass)
+    {
+       FVector StartLoc = GridArray[GetIndex(0, 0)].WorldPosition;
+       StartLoc.Z += 500.f; 
+       FActorSpawnParameters SpawnParams;
+       SpawnParams.Owner = this;
+
+       ActiveSpawner = GetWorld()->SpawnActor<AEnemySpawner>(SpawnerClass, StartLoc, FRotator::ZeroRotator, SpawnParams);
+
+       if (ActiveSpawner)
+       {
+          FVector EndLoc = GridArray[GetIndex(GridWidth - 1, GridHeight - 1)].WorldPosition;
+          ActiveSpawner->SetTargetLocation(EndLoc);
+       }
+    }
+
+    if (NexusClass)
+    {
+       FVector NexusLoc = GridArray[GetIndex(GridWidth - 1, GridHeight - 1)].WorldPosition;
+       NexusLoc.Z += 500.f;
+
+       ANexus* SpawnedNexus = GetWorld()->SpawnActor<ANexus>(NexusClass, NexusLoc, FRotator::ZeroRotator);
+    }
 }

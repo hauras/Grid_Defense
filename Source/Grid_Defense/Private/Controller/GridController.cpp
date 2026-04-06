@@ -5,6 +5,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Data/TowerData.h"
 #include "Tower/TowerBase.h"
+#include "Blueprint/UserWidget.h"
 
 AGridController::AGridController()
 {
@@ -31,6 +32,8 @@ void AGridController::BeginPlay()
 			Subsystem->AddMappingContext(DefaultMappingContext, 0);
 		}
 	}
+
+	
 }
 
 void AGridController::PlayerTick(float DeltaTime)
@@ -46,6 +49,11 @@ void AGridController::SetupInputComponent()
 	if (UEnhancedInputComponent* EnhancedInputComponent = CastChecked<UEnhancedInputComponent>(InputComponent))
 	{
 		EnhancedInputComponent->BindAction(ClickAction, ETriggerEvent::Started, this, &AGridController::OnMouseClick);
+
+		if (PauseAction)
+		{
+			EnhancedInputComponent->BindAction(PauseAction, ETriggerEvent::Triggered, this, &AGridController::TogglePause);
+		}
 	}
 
 	
@@ -98,13 +106,11 @@ void AGridController::CursorTrace()
 
 void AGridController::OnMouseClick()
 {
-	// 💡 SelectedTowerData가 있는지 확인
 	if (!SelectedTowerData || !bBuildModeActive) return;
 
 	int32 GridX, GridY;
 	if (GetGridLocationUnderCursor(GridX, GridY))
 	{
-		// 💡 SelectedTowerData를 전달
 		GridManager->AddTower(GridX, GridY, SelectedTowerData);
 	}
 }
@@ -115,11 +121,29 @@ void AGridController::SetSelectedTower(UTowerData* NewData)
 
 	SelectedTowerData = NewData;
 
-	// 타워가 바뀌었으므로 기존 프리뷰는 제거 (그래야 새 모양으로 생성됨)
 	if (CurrentPreviewActor)
 	{
 		CurrentPreviewActor->Destroy();
 		CurrentPreviewActor = nullptr;
+	}
+}
+
+// 일시정지
+void AGridController::TogglePause()
+{
+	if (PauseMenuClass)
+	{
+		UGameplayStatics::SetGamePaused(this, true);
+
+		bShowMouseCursor = true;
+		FInputModeUIOnly InputModeData;
+		SetInputMode(InputModeData);
+
+		UUserWidget* PauseMenu = CreateWidget<UUserWidget>(this, PauseMenuClass);
+		if (PauseMenu)
+		{
+			PauseMenu->AddToViewport();
+		}
 	}
 }
 

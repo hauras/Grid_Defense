@@ -64,3 +64,17 @@ void AGridGameMode::DecreaseLife(int32 Damage)
 	}
 }
 
+void AGridGameMode::SetCurrentGold(int32 NewGold)
+{
+	CurrentGold = NewGold;
+	// 🌟 덮어씌운 다음, UI 위젯들이 숫자를 새로고침하도록 방송합니다!
+	OnGoldChanged.Broadcast(CurrentGold);
+}
+
+void AGridGameMode::SetCurrentLife(int32 NewLife)
+{
+	CurrentLife = NewLife;
+	// 🌟 생명력 UI도 새로고침!
+	OnLifeChanged.Broadcast(CurrentLife, MaxLife);
+}
+

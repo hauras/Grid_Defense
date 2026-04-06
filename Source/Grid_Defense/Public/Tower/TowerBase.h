@@ -31,7 +31,16 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
 	FGameplayTag TowerDamageTag;
-	
+
+	UTowerData* GetTowerData() const { return MyData; }
+
+	bool IsPreview() const { return bIsPreviewMode; }
+
+	UPROPERTY(VisibleAnywhere, Category = "Grid")
+	int32 GridX;
+
+	UPROPERTY(VisibleAnywhere, Category = "Grid")
+	int32 GridY;
 protected:
 
 	virtual void BeginPlay() override;

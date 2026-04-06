@@ -40,23 +40,6 @@ struct FGridInfo
 	FGridInfo() : X(0), Y(0), WorldPosition(FVector::ZeroVector), bIsWalkable(true), FlowCost(99999), FlowDirection(FVector::ZeroVector) {}
 };
 
-// A* 알고리즘 추후 필요하면 사용
-#if 0
-struct FAStarNode
-{
-	int32 X,Y;
-    
-	int32 GCost; // 시작점에서의 거리
-	int32 HCost; // 목적지까지의 예상거리
-	int32 FCost; // G +H를 합한 값 예상거리 + 시작점에서거리
-    
-	FAStarNode* ParentNode;
-
-	FAStarNode(int32 InX, int32 InY) : X(InX), Y(InY), GCost(0), HCost(0), FCost(0), ParentNode(nullptr) {}    
-};
-
-#endif
-
 
 UCLASS()
 class GRID_DEFENSE_API AGridManager : public AActor
@@ -68,14 +51,10 @@ public:
 
     // =====================================
     FORCEINLINE int32 GetIndex(int32 X, int32 Y) const { return (Y * GridWidth) + X; }
-    void AddTower(int32 X, int32 Y, UTowerData* SelectedData);
+	void AddTower(int32 X, int32 Y, UTowerData* SelectedData, bool bIsLoading = false);
+	
     bool bIsTileBuildable(int32 X, int32 Y) const;
-
-// 💡 A* 길찾기 함수는 이제 안 쓰므로 봉인! (나중에 포트폴리오 비교용)
-#if 0
-    bool FindPath(int32 StartX, int32 StartY, int32 EndX, int32 EndY, TArray<FIntPoint>& OutPath);
-#endif
-    
+	
     float GetTileSize() const { return TileSize; }
     int32 GetGridWidth() const { return GridWidth; }
     int32 GetGridHeight() const { return GridHeight; }
@@ -92,6 +71,8 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "FlowField")
 	int32 GetFlowCost(FVector WorldLocation) const;
+
+	const TArray<FGridInfo>& GetGridArray() const { return GridArray; }	
 protected:
     virtual void BeginPlay() override;
     void GenerateGrid();
@@ -104,11 +85,11 @@ protected:
     
     AEnemySpawner* ActiveSpawner;
 
+	void LoadSavedGrid(const TArray<ETileType>& SavedLayout);
 private:
 	
     TArray<FGridInfo> GridArray;
-
-
+	
 	void DrawDebugFlowField();
 	
     TArray<FIntPoint> GetWalkableNeighbors(int32 X, int32 Y);

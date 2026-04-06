@@ -36,6 +36,14 @@ protected:
 	
 	UPROPERTY(EditAnywhere, Category = "Input")
 	TObjectPtr<UInputAction> ClickAction;
+
+	UPROPERTY(EditAnywhere, Category = "Input")
+	TObjectPtr<UInputAction> PauseAction;
+
+	UPROPERTY(EditAnywhere, Category = "UI")
+	TSubclassOf<UUserWidget> PauseMenuClass;
+
+	void TogglePause();
 	
 	void OnKey1Pressed();
 	void OnKey2Pressed();

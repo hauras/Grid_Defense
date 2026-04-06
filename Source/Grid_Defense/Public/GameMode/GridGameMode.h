@@ -30,6 +30,16 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Economy")
 	int32 GetCurrentGold() const { return CurrentGold; }
+
+	UFUNCTION(BlueprintCallable, Category = "Economy")
+	int32 GetCurrentLife() const { return CurrentLife; }
+
+	// 🌟 [추가 2] 불러오기 시 골드와 생명력을 덮어씌우는 Setter
+	UFUNCTION(BlueprintCallable, Category = "SaveLoad")
+	void SetCurrentGold(int32 NewGold);
+
+	UFUNCTION(BlueprintCallable, Category = "SaveLoad")
+	void SetCurrentLife(int32 NewLife);
 	
 	UPROPERTY(BlueprintAssignable, Category = "Events")
 	FOnGoldChangedDelegate OnGoldChanged;
