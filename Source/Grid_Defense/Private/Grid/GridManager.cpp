@@ -130,7 +130,23 @@ FVector AGridManager::GetFlowDirection(FVector WorldLocation) const
 	// 2. 안전 검사 후 해당 타일의 화살표 반환
 	if (GridArray.IsValidIndex(Index))
 	{
-		return GridArray[Index].FlowDirection;
+		// [기존 코드] 고정된 나침반 방향 반환 (코너를 돌 때마다 오차 누적됨)
+		// return GridArray[Index].FlowDirection;
+
+		// 💡 [수정된 코드] 다음 타일의 중앙으로 끌어당기는 '자석' 조향 방식
+       
+		FVector BakedDir = GridArray[Index].FlowDirection;     // 원래 가야 할 방향
+		FVector CurrentTileCenter = GridArray[Index].WorldPosition; // 현재 타일의 정중앙 좌표
+
+		// 목적지 1: 우리가 도달해야 할 '다음 타일의 정중앙' 좌표 계산
+		FVector TargetTileCenter = CurrentTileCenter + (BakedDir * TileSize);
+
+		// 목적지 2: 몬스터의 '현재 위치'에서 '다음 타일 중앙'을 바라보는 벡터 계산!
+		FVector CorrectedDir = TargetTileCenter - WorldLocation;
+		CorrectedDir.Z = 0.f; // 땅바닥에 붙어있도록 높이 무시
+
+		// 정규화(길이를 1로 만듦)해서 반환
+		return CorrectedDir.GetSafeNormal();
 	}
 
 	return FVector::ZeroVector;

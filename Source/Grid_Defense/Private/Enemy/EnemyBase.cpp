@@ -21,7 +21,7 @@ AEnemyBase::AEnemyBase()
 
 	HPBarWidget = CreateDefaultSubobject<UWidgetComponent>(TEXT("HPBarWidget"));
 	HPBarWidget->SetupAttachment(RootComponent);
-	HPBarWidget->SetRelativeLocation(FVector(0.f, 0.f, 100.f)); // 머리 위로 100만큼 올리기
+	HPBarWidget->SetRelativeLocation(FVector(0.f, 0.f, 100.f)); 
 	HPBarWidget->SetWidgetSpace(EWidgetSpace::Screen);
 	if (GetCapsuleComponent())
 	{

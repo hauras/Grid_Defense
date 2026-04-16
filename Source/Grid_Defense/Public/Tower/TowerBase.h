@@ -32,6 +32,11 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
 	FGameplayTag TowerDamageTag;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
+	FGameplayTagContainer StateTag;
+
+	void ApplyStun(float StunDuration);
+	
 	UTowerData* GetTowerData() const { return MyData; }
 
 	bool IsPreview() const { return bIsPreviewMode; }
@@ -69,7 +74,9 @@ protected:
 	AActor* CurrentTarget;
 
 	FTimerHandle AttackTimerHandle;
+	FTimerHandle StunTimerHandle;
 
+	void EndStun();
 	void FindTarget();
 
 	virtual void Fire();
@@ -82,4 +89,6 @@ protected:
 
 	UPROPERTY(EditAnywhere, Category = "Tower")
 	ETargetPriority TargetPriority = ETargetPriority::First;
+
+	
 };

@@ -108,7 +108,6 @@ void AProjectileBase::FireAtTarget(AActor* TargetActor)
 			CachedTarget = Enemy;
 		}
 
-		// 💡 [예측 사격 로직]
 		// 1. 타겟의 현재 위치와 이동 속도(방향 포함)를 가져옵니다.
 		FVector TargetLocation = TargetActor->GetActorLocation();
 		FVector TargetVelocity = TargetActor->GetVelocity();
@@ -128,13 +127,11 @@ void AProjectileBase::FireAtTarget(AActor* TargetActor)
 
 void AProjectileBase::OnTargetDied()
 {
-	UE_LOG(LogTemp, Error, TEXT("[%s] OnTargetDied 발생! 쫓던 적이 죽어서 돌아감."), *GetName());
 	ReturnToManager();
 }
 
 void AProjectileBase::ReturnToManager()
 {
-	UE_LOG(LogTemp, Warning, TEXT("[%s] ReturnToManager 호출됨! (공장으로 돌아감)"), *GetName());
 	if (CachedTarget)
 	{
 		CachedTarget->OnEnemyDied.RemoveDynamic(this, &AProjectileBase::OnTargetDied);
@@ -151,9 +148,6 @@ void AProjectileBase::ReturnToManager()
 		ProjectileComponent->Deactivate();
 	}
     
-	// ==========================================
-	// 🌟 [여기에 추가!] 공장에 들어갈 땐 충돌을 꺼야 두 번 안 때리고, 서로 안 부딪힙니다!
-	// ==========================================
 	if (Collision)
 	{
 		Collision->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -161,9 +155,8 @@ void AProjectileBase::ReturnToManager()
     
 	if (MeshComponent)
 	{
-		MeshComponent->SetVisibility(false); // 혹시 모르니 메쉬도 숨겨주면 완벽합니다.
+		MeshComponent->SetVisibility(false); 
 	}
-	// ==========================================
 
 	if (CachedPoolManager)
 	{

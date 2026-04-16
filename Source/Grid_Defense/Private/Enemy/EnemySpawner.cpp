@@ -42,63 +42,50 @@ void AEnemySpawner::SpawnNextWave()
 
 void AEnemySpawner::SpawnEnemy()
 {
-    if (!EnemyList.IsValidIndex(CurrentSpawnLevel)) return;
+	if (!EnemyList.IsValidIndex(CurrentSpawnLevel)) return;
 
-    FSpawnWaveData Selected = EnemyList[CurrentSpawnLevel];
+	FSpawnWaveData Selected = EnemyList[CurrentSpawnLevel];
 
-    if (Selected.EnemyClass)
-    {
-        FActorSpawnParameters SpawnParams;
-        SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+	// 🚨 1. 에디터에서 데이터 테이블이 잘 들어있는지 확인!
+	if (!EnemyDataTable)
+	{
+		UE_LOG(LogTemp, Error, TEXT("스포너에 EnemyDataTable이 연결되지 않았습니다!"));
+		return;
+	}
 
-        AEnemyBase* SpawnedEnemy = GetWorld()->SpawnActor<AEnemyBase>(Selected.EnemyClass, GetActorLocation(), GetActorRotation(), SpawnParams);
+	// 2. 웨이브에 적힌 행 이름(EnemyRowName)으로 적 데이터 테이블(FEnemyData)을 검색합니다.
+	static const FString ContextString(TEXT("Spawn Enemy Context"));
+	FEnemyData* EnemyData = EnemyDataTable->FindRow<FEnemyData>(Selected.EnemyRowName, ContextString);
 
-        if (SpawnedEnemy)
-        {
-            SpawnedEnemy->InitializeEnemy(Selected.EnemyRowName); 
+	// 3. 데이터를 성공적으로 찾았고, 그 데이터 안에 EnemyClass(보스인지 일반몹인지)가 있다면?
+	if (EnemyData && EnemyData->EnemyClass)
+	{
+		FActorSpawnParameters SpawnParams;
+		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
-            // ==========================================
-            // [A* 내비게이션 경로 주입 로직 - 기존 유지]
-            // ==========================================
-            /*AGridManager* GridManager = Cast<AGridManager>(UGameplayStatics::GetActorOfClass(GetWorld(), AGridManager::StaticClass()));
-            if (GridManager)
-            {
-                TArray<FIntPoint> GridPath;
-                int32 StartX = 0, StartY = 0;
-                int32 EndX = GridManager->GetGridWidth() - 1; 
-                int32 EndY = GridManager->GetGridHeight() - 1;
+		// 💡 4. 무조건 스폰하는 게 아니라, 데이터에 적힌 클래스(EnemyClass)로 소환합니다!
+		AEnemyBase* SpawnedEnemy = GetWorld()->SpawnActor<AEnemyBase>(EnemyData->EnemyClass, GetActorLocation(), GetActorRotation(), SpawnParams);
 
-                if (GridManager->FindPath(StartX, StartY, EndX, EndY, GridPath))
-                {
-                    TArray<FVector> WorldPath;
-                    for (FIntPoint Node : GridPath)
-                    {
-                        FVector NodeWorldPos = GridManager->GetTileWorldPosition(Node.X, Node.Y);
-                        NodeWorldPos.Z += 100.f; 
-                        WorldPath.Add(NodeWorldPos);
-                    }
-                    SpawnedEnemy->SetPath(WorldPath);
-                }
-            }*/
+		if (SpawnedEnemy)
+		{
+			// 스폰된 녀석에게 "너는 Boss_01번 데이터니까 체력 5000으로 셋팅해!" 라고 지시
+			SpawnedEnemy->InitializeEnemy(Selected.EnemyRowName); 
+            
+			// 소환 카운트 증가 로직
+			EnemySpawnInCurrentWave++;
 
-            // 💡 [핵심 추가] 소환 카운트 1 증가
-            EnemySpawnInCurrentWave++;
-
-            // 목표 마리 수만큼 다 소환했는지 체크
-            if (EnemySpawnInCurrentWave >= Selected.SpawnCount)
-            {
-                // 1. 반복 소환 타이머 정지
-                GetWorldTimerManager().ClearTimer(SpawnTimerHandle);
-
-                // 2. 다음 웨이브로 레벨 업
-                CurrentSpawnLevel++;
-
-                UE_LOG(LogTemp, Warning, TEXT("웨이브 종료! %f초 대기 후 다음 웨이브 시작..."), TimeBetweenWaves);
-
-                // 3. 쉬는 시간(TimeBetweenWaves) 이후에 다음 웨이브 시작 함수 호출
-                GetWorldTimerManager().SetTimer(SpawnTimerHandle, this, &AEnemySpawner::SpawnNextWave, TimeBetweenWaves, false);
-            }
-        }
-    }
+			if (EnemySpawnInCurrentWave >= Selected.SpawnCount)
+			{
+				GetWorldTimerManager().ClearTimer(SpawnTimerHandle);
+				CurrentSpawnLevel++;
+				UE_LOG(LogTemp, Warning, TEXT("웨이브 종료! 다음 웨이브 준비..."));
+				GetWorldTimerManager().SetTimer(SpawnTimerHandle, this, &AEnemySpawner::SpawnNextWave, TimeBetweenWaves, false);
+			}
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("데이터 테이블에서 %s 를 찾을 수 없거나 EnemyClass가 비어있습니다!"), *Selected.EnemyRowName.ToString());
+	}
 }
 

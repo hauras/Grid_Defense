@@ -20,7 +20,8 @@ public:
 	FGameplayTag Enemy_Nature;
 	FGameplayTag Enemy_Fire;
 	FGameplayTag Enemy_Water;
-	
+
+	FGameplayTag State_Stun;
 private:
 	static FGridGameplayTags GameplayTags;
 	

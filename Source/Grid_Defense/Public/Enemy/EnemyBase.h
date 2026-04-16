@@ -20,6 +20,9 @@ struct FEnemyData : public FTableRowBase
     GENERATED_BODY()
 
 public:
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Class")
+    TSubclassOf<class AEnemyBase> EnemyClass;
+    
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat")
     float MaxHP = 100.f;
 

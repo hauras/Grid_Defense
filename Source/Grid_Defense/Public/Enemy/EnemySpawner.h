@@ -53,6 +53,10 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Spawning")
 	AActor* TargetDestination;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spawning")
+	TObjectPtr<UDataTable> EnemyDataTable;
+	
+	
 	FTimerHandle SpawnTimerHandle;
 
 	int32 EnemySpawnInCurrentWave = 0;

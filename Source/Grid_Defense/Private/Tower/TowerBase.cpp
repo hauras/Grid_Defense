@@ -1,6 +1,8 @@
 
 
 #include "Tower/TowerBase.h"
+
+#include "GridGameplayTags.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/DecalComponent.h"
 #include "Projectile/ProjectileBase.h"
@@ -10,6 +12,7 @@
 #include "Kismet/KismetSystemLibrary.h" 
 #include "Projectile/PoolManager.h"
 #include "Projectile/SplashProjectile.h"
+#include "GameplayTagContainer.h"
 
 ATowerBase::ATowerBase()
 {
@@ -77,12 +80,32 @@ void ATowerBase::BeginPlay()
 	Super::BeginPlay();
 
 	CachedPoolManager = Cast<APoolManager>(UGameplayStatics::GetActorOfClass(GetWorld(), APoolManager::StaticClass()));
-	if (!CachedPoolManager)
-	{
-		UE_LOG(LogTemp, Error, TEXT("[%s] 풀 매니저를 찾을 수 없습니다! 맵에 배치했는지 확인하세요."), *GetName());
-	}
 	CachedGridManager = Cast<AGridManager>(UGameplayStatics::GetActorOfClass(GetWorld(), AGridManager::StaticClass()));
 	
+}
+
+void ATowerBase::ApplyStun(float StunDuration)
+{
+	const FGameplayTag& StunTag = FGridGameplayTags::Get().State_Stun;
+
+	if (!StateTag.HasTagExact(StunTag))
+	{
+		StateTag.AddTag(StunTag);
+        
+		// TODO: 타워를 얼음/회색으로 만들거나 스턴 파티클을 켜는 시각적 효과 추가
+		UE_LOG(LogTemp, Warning, TEXT("타워 기절! 공격 중지!"));
+	}
+
+	GetWorldTimerManager().ClearTimer(StunTimerHandle);
+	GetWorldTimerManager().SetTimer(StunTimerHandle, this, &ATowerBase::EndStun, StunDuration, false);
+}
+
+void ATowerBase::EndStun()
+{
+	const FGameplayTag& StunTag = FGridGameplayTags::Get().State_Stun;
+	StateTag.RemoveTag(StunTag);
+
+	UE_LOG(LogTemp, Warning, TEXT("타워 기절 해제! 공격 재개!"));
 }
 
 void ATowerBase::FindTarget()
@@ -175,15 +198,14 @@ void ATowerBase::FindTarget()
 		CurrentTarget = BestTarget;
 		Fire();
 	}
-  
-       
-    
 }
 
 void ATowerBase::Fire()
 {
 	if (!CurrentTarget || !MyData) return;
 
+	if (StateTag.HasTagExact(FGridGameplayTags::Get().State_Stun)) return;
+	
 	if (AttackSound) 
 	{
 		UGameplayStatics::PlaySoundAtLocation(this, AttackSound, GetActorLocation());
