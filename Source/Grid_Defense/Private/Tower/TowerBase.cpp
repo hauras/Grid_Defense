@@ -75,10 +75,7 @@ void ATowerBase::InitTower(UTowerData* TowerData, bool bIsPreview)
 		MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 		MeshComponent->SetCastShadow(true);
         
-		if (MyData && MyData->AttackInterval > 0.f)
-		{
-			GetWorldTimerManager().SetTimer(AttackTimerHandle, this, &ATowerBase::FindTarget, MyData->AttackInterval, true);
-		}
+		UpdateAttackTimer();
 	}
 }
 
@@ -92,10 +89,26 @@ void ATowerBase::ReceiveBuffBroadcast(const FCardData& CardInfo)
 
 	if (bIsAllBuff || bHasMatchingTag)
 	{
-		// 내 스탯에 버프 추가
+		// 1. 데미지 추가
 		CurrentDamageMultiplier += CardInfo.DamageBuffAmount;
-        
-		UE_LOG(LogTemp, Warning, TEXT("[%s] 카드 버프 적용 성공: %s"), *GetName(), *CardInfo.CardName);
+		// 2. 공속 버프
+		if (CardInfo.AttackSpeedBuffAmount > 0.0f)
+		{
+			CurrentAttackSpeedMultiplier += CardInfo.AttackSpeedBuffAmount;
+			UpdateAttackTimer(); // 타이머 갱신 함수 호출
+		}
+
+		//3. 폭발 범위 증가
+		if (CardInfo.SplashRadiusBuffAmount > 0.0f)
+		{
+			CurrentSplashRadiusBonus += CardInfo.SplashRadiusBuffAmount;
+			
+		}
+
+		if (CardInfo.ChainCountBuffAmount)
+		{
+			CurrentChainBonus += CardInfo.ChainCountBuffAmount;
+		}
 	}
 }
 
@@ -258,11 +271,7 @@ void ATowerBase::Fire()
 	if (Projectile)
 	{
 		Projectile->SetOwner(this);
-       
-		// ==========================================
-		// 💡 [여기에 추가!] 오리지널 데미지에 현재 버프 배율을 곱해서 최종 데미지 계산!
 		float FinalDamage = MyData->Damage * CurrentDamageMultiplier;
-		// ==========================================
 
 		switch (MyData->TowerType)
 		{
@@ -275,16 +284,30 @@ void ATowerBase::Fire()
 			if (ASplashProjectile* SplashProj = Cast<ASplashProjectile>(Projectile))
 			{
 				// 💡 여기도 FinalDamage!
-				SplashProj->InitSplash(MyData->SplashRadius, FinalDamage); 
+				float FinalSplashRadius = MyData->SplashRadius + CurrentSplashRadiusBonus;
+             
+				// 💡 2. 대포알한테 더 커진 반경과 데미지를 넘겨줍니다!
+				SplashProj->InitSplash(FinalSplashRadius, FinalDamage);
 			}
 			break;
 
 		case ETowerType::Chain:
-			// 💡 여기도 FinalDamage!
 			Projectile->SetDamage(FinalDamage); 
 			break;
 		}
 
 		Projectile->FireAtTarget(CurrentTarget);
 	}
+}
+
+void ATowerBase::UpdateAttackTimer()
+{
+	if (!MyData || MyData->AttackInterval <= 0.f) return;
+
+	float FinalInterval = MyData->AttackInterval / CurrentAttackSpeedMultiplier;
+
+	GetWorldTimerManager().ClearTimer(AttackTimerHandle);
+	GetWorldTimerManager().SetTimer(AttackTimerHandle, this, &ATowerBase::FindTarget, FinalInterval, true);
+
+	UE_LOG(LogTemp, Warning, TEXT("[%s] 공속 업데이트! 새로운 발사 간격: %f초"), *GetName(), FinalInterval);	
 }

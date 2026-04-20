@@ -21,10 +21,14 @@ void ALightningTower::Fire()
 
 void ALightningTower::ExecuteChain(AActor* Target, int32 CurrentChainCount, TArray<AActor*> HitActors) // & 삭제!
 {
-	if (!IsValid(Target) || CurrentChainCount >= MaxChainCount || HitActors.Contains(Target) ) return;
+	int32 FinalMaxChain = MaxChainCount + CurrentChainBonus;
+	
+	if (!IsValid(Target) || CurrentChainCount >= FinalMaxChain || HitActors.Contains(Target)) return;
 
 	if (MyData)
 	{
+		float FinalDamage = MyData->Damage * CurrentDamageMultiplier;
+		
 		UGameplayStatics::ApplyDamage(
 			Target,
 			MyData->Damage,

@@ -105,5 +105,15 @@ protected:
 	TObjectPtr<UWidgetComponent> StunWidget;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Tower")
-	float CurrentDamageMultiplier = 1.0f;
+	float CurrentDamageMultiplier = 1.0f; // 데미지 배율
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Tower")
+	float CurrentRangeMultiplier = 1.0f;       // 사거리 배율
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Tower")
+	float CurrentAttackSpeedMultiplier = 1.0f; // 공속 배율
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Tower")
+	int32 CurrentChainBonus = 0;               // 체인 추가 횟수
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Tower")
+	float CurrentSplashRadiusBonus = 0.0f;     // 스플래시 추가 범위
+
+	void UpdateAttackTimer();
 };
