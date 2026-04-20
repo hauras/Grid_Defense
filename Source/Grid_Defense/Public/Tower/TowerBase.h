@@ -5,9 +5,11 @@
 #include "Data/TowerData.h"
 #include "GameFramework/Actor.h"
 #include "GameplayTagContainer.h" 
+#include "State/GridGameState.h"
 #include "TowerBase.generated.h"
 
 class AGridManager;
+class UWidgetComponent;
 
 UENUM(BlueprintType)
 enum class ETargetPriority  : uint8
@@ -29,9 +31,15 @@ public:
 
 	virtual void InitTower(UTowerData* TowerData, bool bIsPreview = false);
 
+	// 타워 태그
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Combat")
+	FGameplayTagContainer TowerTag;
+
+	// 타워 데미지 타입 태그
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
 	FGameplayTag TowerDamageTag;
 
+	// CC기 태그
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
 	FGameplayTagContainer StateTag;
 
@@ -46,6 +54,9 @@ public:
 
 	UPROPERTY(VisibleAnywhere, Category = "Grid")
 	int32 GridY;
+
+	UFUNCTION()
+	void ReceiveBuffBroadcast(const FCardData& CardInfo);
 protected:
 
 	virtual void BeginPlay() override;
@@ -90,5 +101,9 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Tower")
 	ETargetPriority TargetPriority = ETargetPriority::First;
 
-	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Tower")
+	TObjectPtr<UWidgetComponent> StunWidget;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Tower")
+	float CurrentDamageMultiplier = 1.0f;
 };

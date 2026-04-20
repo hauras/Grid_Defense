@@ -14,6 +14,7 @@
 #include "UI/Widget/EnemyHPWidget.h"
 #include "UI/DamageText/DamageTextComponent.h"
 #include "TimerManager.h"
+#include "Enemy/EnemySpawner.h"
 
 AEnemyBase::AEnemyBase()
 {
@@ -194,19 +195,29 @@ void AEnemyBase::Die()
 	if (bIsDead) return; 
 	bIsDead = true;      
 
+	// ==========================================
+	// 🌟 [여기에 추가!] 스포너에게 사망 소식 알리기
+	// 맵에서 AEnemySpawner를 찾아서 OnEnemyDefeated()를 실행합니다.
+	if (AEnemySpawner* Spawner = Cast<AEnemySpawner>(UGameplayStatics::GetActorOfClass(GetWorld(), AEnemySpawner::StaticClass())))
+	{
+		Spawner->OnEnemyDefeated();
+	}
+	// ==========================================
+
 	OnEnemyDied.Broadcast();
-	
+    
 	AGridGameMode* GM = Cast<AGridGameMode>(UGameplayStatics::GetGameMode(GetWorld()));
 	if (GM)
 	{
 		GM->AddGold(MyGoldReward);
 	}
 	SetActorEnableCollision(false);
+    
 	if (HPBarWidget)
 	{
 		HPBarWidget->SetVisibility(false);
 	}
-	
+    
 	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	GetMesh()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	GetCharacterMovement()->StopMovementImmediately();

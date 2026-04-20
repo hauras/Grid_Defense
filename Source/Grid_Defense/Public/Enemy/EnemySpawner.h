@@ -35,6 +35,12 @@ class GRID_DEFENSE_API AEnemySpawner : public AActor
 public:	
 	AEnemySpawner();
 	void SetTargetLocation(FVector InLoc) { TargetLocation = InLoc; }
+
+	int32 AliveEnemyCount = 0;
+
+	// 💡 몬스터가 죽을 때마다 호출해 줄 함수
+	UFUNCTION()
+	void OnEnemyDefeated();
 protected:
 	virtual void BeginPlay() override;
 
