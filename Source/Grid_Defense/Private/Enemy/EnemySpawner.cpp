@@ -27,10 +27,10 @@ void AEnemySpawner::SpawnNextWave()
 {
 	if (!WaveList.IsValidIndex(CurrentSpawnLevel))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("모든 웨이브 스폰이 완료되었습니다!"));
 		return;
 	}
 
+	
 	// 💡 웨이브 시작 시 모든 추적 변수 초기화
 	CurrentGroupIndex = 0;
 	EnemySpawnInCurrentGroup = 0;
@@ -45,7 +45,7 @@ void AEnemySpawner::SpawnNextWave()
 	{
 		TotalEnemiesToSpawnInWave += Group.SpawnCount;
 	}
-
+	OnWaveChanged.Broadcast(CurrentSpawnLevel + 1);
 	UE_LOG(LogTemp, Warning, TEXT("웨이브 %d 시작! 총 %d 마리 소환 예정"), CurrentSpawnLevel + 1, TotalEnemiesToSpawnInWave);
 
 	// 첫 번째 그룹이 있다면 소환 시작!

@@ -28,15 +28,19 @@ void ANexus::OnNexusOverlap(UPrimitiveComponent* OverlappedComponent, AActor* Ot
 	if (OtherActor && OtherActor != this)
 	{
 		AEnemyBase* Enemy = Cast<AEnemyBase>(OtherActor);
-		if (Enemy)
+       
+		if (Enemy && !Enemy->IsDead()) 
 		{
 			AGridGameMode* GM = Cast<AGridGameMode>(UGameplayStatics::GetGameMode(GetWorld()));
 			if (GM)
 			{
-				GM->DecreaseLife(1);
+				// 💡 여기서 에러가 나지 않고 각 몬스터 고유의 데미지를 깎습니다!
+				int32 DamageAmount = Enemy->GetLifeDamage(); 
+				GM->DecreaseLife(DamageAmount);
 			}
 
-			Enemy->Destroy();
+			// 💡 돈을 주지 않고 스포너 카운트만 내린 뒤 파괴!
+			Enemy->ReachNexus(); 
 		}
 	}
 }

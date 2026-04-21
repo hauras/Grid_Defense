@@ -7,6 +7,8 @@
 
 class AEnemyBase;
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnWaveChanged, int32, CurrentWave);
+
 USTRUCT(BlueprintType)
 struct FEnemyGroupData
 {
@@ -46,6 +48,9 @@ public:
 	// 💡 몬스터가 죽을 때마다 호출해 줄 함수
 	UFUNCTION()
 	void OnEnemyDefeated();
+
+	UPROPERTY(BlueprintAssignable, Category = "Events")
+	FOnWaveChanged OnWaveChanged;
 protected:
 	virtual void BeginPlay() override;
 

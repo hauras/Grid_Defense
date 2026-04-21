@@ -40,10 +40,7 @@ public:
     // 💡 추가 3: 타겟팅 중요도 (기본값 1, 보스는 5)
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat")
     float TargetingWeight = 1.0f;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Visual")
-    USkeletalMesh* EnemyMesh;
-
+    
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tag")
     FGameplayTagContainer EnemyTags;
 };
@@ -64,6 +61,11 @@ public:
     void SetPath(const TArray<FVector>& NewPath); 
     void RecalculatePath();
     
+    UFUNCTION(BlueprintCallable, Category = "Stat")
+    int32 GetLifeDamage() const { return MyLifeDamage; }
+
+    // 🌟 [추가 2] 넥서스 골인 전용 함수 (돈 안 줌, 애니메이션 안 틈)
+    void ReachNexus();
     UFUNCTION(BlueprintCallable, Category = "Status")
     bool IsDead() const { return bIsDead; }
 
@@ -131,6 +133,7 @@ protected:
     TObjectPtr<UAnimMontage> DeathMontage;
 
     int32 MyGoldReward = 0;
+    int32 MyLifeDamage = 1;
     
 private:
     void RemoveSlow();

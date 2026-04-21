@@ -34,7 +34,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Economy")
 	int32 GetCurrentLife() const { return CurrentLife; }
 
-	// 🌟 [추가 2] 불러오기 시 골드와 생명력을 덮어씌우는 Setter
 	UFUNCTION(BlueprintCallable, Category = "SaveLoad")
 	void SetCurrentGold(int32 NewGold);
 
@@ -46,6 +45,12 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category = "Events")
 	FOnLifeChangedDelegate OnLifeChanged;
+
+	UFUNCTION(BlueprintCallable, Category = "Game")
+	void GameOver();
+
+	UFUNCTION(BlueprintCallable, Category = "Game")
+	void GameClear();
 
 	
 protected:
@@ -60,5 +65,9 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Status")
 	int32 CurrentGold;
 
+	UPROPERTY(EditDefaultsOnly, Category = "UI")
+	TSubclassOf<class UUserWidget> GameOverUIClass;
 
+	UPROPERTY(EditDefaultsOnly, Category = "UI")
+	TSubclassOf<class UUserWidget> GameClearUIClass;
 };

@@ -98,17 +98,16 @@ void AEnemyBase::InitializeStats()
 		{
 			MaxHP = Data->MaxHP;       
 			CurrentHP = MaxHP;
-
 			GetCharacterMovement()->MaxWalkSpeed = Data->MoveSpeed;
-
 			BaseMoveSpeed = Data->MoveSpeed; 
+          
 			MyGoldReward = Data->GoldReward;
+			// 🌟 [수정 1] 데이터 테이블에서 라이프 데미지 읽어서 변수에 저장!
+			MyLifeDamage = Data->LifeDamage; 
+          
 			this->EnemyTags = Data->EnemyTags;
+          
 			
-			if (Data->EnemyMesh)
-			{
-				GetMesh()->SetSkeletalMesh(Data->EnemyMesh);
-			}
 		}
 	}
 }
@@ -250,7 +249,18 @@ void AEnemyBase::RemoveSlow()
 	GetCharacterMovement()->MaxWalkSpeed = BaseMoveSpeed;
 }
 
+void AEnemyBase::ReachNexus()
+{
+	if (bIsDead) return;
+	bIsDead = true;
 
+	if (AEnemySpawner* Spawner = Cast<AEnemySpawner>(UGameplayStatics::GetActorOfClass(GetWorld(), AEnemySpawner::StaticClass())))
+	{
+		Spawner->OnEnemyDefeated();
+	}
+
+	Destroy();
+}
 
 
 
