@@ -12,7 +12,6 @@ AEnemySpawner::AEnemySpawner()
     RootComponent = SpawnerMesh;
 
     CurrentSpawnLevel = 0;
-    EnemySpawnInCurrentWave = 0;
     AliveEnemyCount = 0; // 💡 살아있는 몬스터 수 초기화
 }
 
@@ -21,42 +20,54 @@ void AEnemySpawner::BeginPlay()
     Super::BeginPlay();
 
     // 게임 시작 후 2초 뒤에 첫 웨이브 시작
-    GetWorldTimerManager().SetTimer(SpawnTimerHandle, this, &AEnemySpawner::SpawnEnemy, 2.0f, true);
+	GetWorldTimerManager().SetTimer(SpawnTimerHandle, this, &AEnemySpawner::SpawnNextWave, 2.0f, false);
 }
 
 void AEnemySpawner::SpawnNextWave()
 {
-    if (!EnemyList.IsValidIndex(CurrentSpawnLevel))
-    {
-       UE_LOG(LogTemp, Warning, TEXT("모든 웨이브 스폰이 완료되었습니다!"));
-       return;
-    }
+	if (!WaveList.IsValidIndex(CurrentSpawnLevel))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("모든 웨이브 스폰이 완료되었습니다!"));
+		return;
+	}
 
-    EnemySpawnInCurrentWave = 0;
-    AliveEnemyCount = 0; // 안전을 위해 다음 웨이브 시작 시 0으로 초기화
+	// 💡 웨이브 시작 시 모든 추적 변수 초기화
+	CurrentGroupIndex = 0;
+	EnemySpawnInCurrentGroup = 0;
+	TotalEnemiesSpawnedInWave = 0;
+	AliveEnemyCount = 0; 
     
-    FSpawnWaveData CurrentWave = EnemyList[CurrentSpawnLevel];
+	FWaveData& CurrentWave = WaveList[CurrentSpawnLevel];
 
-    UE_LOG(LogTemp, Warning, TEXT("웨이브 %d 시작! 총 %d 마리 소환 예정"), CurrentSpawnLevel + 1, CurrentWave.SpawnCount);
+	// 💡 이번 웨이브에서 총 몇 마리를 잡아야 하는지 (모든 그룹의 소환량 합산) 계산
+	TotalEnemiesToSpawnInWave = 0;
+	for (const FEnemyGroupData& Group : CurrentWave.EnemyGroups)
+	{
+		TotalEnemiesToSpawnInWave += Group.SpawnCount;
+	}
 
-    // 해당 웨이브의 SpawnInterval 간격으로 SpawnEnemy 함수 반복 실행
-    GetWorldTimerManager().SetTimer(SpawnTimerHandle, this, &AEnemySpawner::SpawnEnemy, CurrentWave.SpawnInterval, true);
+	UE_LOG(LogTemp, Warning, TEXT("웨이브 %d 시작! 총 %d 마리 소환 예정"), CurrentSpawnLevel + 1, TotalEnemiesToSpawnInWave);
+
+	// 첫 번째 그룹이 있다면 소환 시작!
+	if (CurrentWave.EnemyGroups.Num() > 0)
+	{
+		float FirstInterval = CurrentWave.EnemyGroups[0].SpawnInterval;
+		GetWorldTimerManager().SetTimer(SpawnTimerHandle, this, &AEnemySpawner::SpawnEnemy, FirstInterval, true);
+	}
 }
 
 void AEnemySpawner::SpawnEnemy()
 {
-    if (!EnemyList.IsValidIndex(CurrentSpawnLevel)) return;
+    if (!WaveList.IsValidIndex(CurrentSpawnLevel)) return;
+    FWaveData& CurrentWave = WaveList[CurrentSpawnLevel];
 
-    FSpawnWaveData Selected = EnemyList[CurrentSpawnLevel];
+    if (!CurrentWave.EnemyGroups.IsValidIndex(CurrentGroupIndex)) return;
+    FEnemyGroupData& CurrentGroup = CurrentWave.EnemyGroups[CurrentGroupIndex]; // 현재 소환할 그룹
 
-    if (!EnemyDataTable)
-    {
-       UE_LOG(LogTemp, Error, TEXT("스포너에 EnemyDataTable이 연결되지 않았습니다!"));
-       return;
-    }
+    if (!EnemyDataTable) return;
 
     static const FString ContextString(TEXT("Spawn Enemy Context"));
-    FEnemyData* EnemyData = EnemyDataTable->FindRow<FEnemyData>(Selected.EnemyRowName, ContextString);
+    FEnemyData* EnemyData = EnemyDataTable->FindRow<FEnemyData>(CurrentGroup.EnemyRowName, ContextString);
 
     if (EnemyData && EnemyData->EnemyClass)
     {
@@ -67,50 +78,54 @@ void AEnemySpawner::SpawnEnemy()
 
        if (SpawnedEnemy)
        {
-          SpawnedEnemy->InitializeEnemy(Selected.EnemyRowName); 
+          SpawnedEnemy->InitializeEnemy(CurrentGroup.EnemyRowName); 
             
-          // 💡 소환 카운트 증가 및 살아있는 몬스터 수 증가
-          EnemySpawnInCurrentWave++;
+          // 카운트 증가
+          EnemySpawnInCurrentGroup++;
+          TotalEnemiesSpawnedInWave++;
           AliveEnemyCount++; 
 
-          // 이번 웨이브의 목표 소환량을 다 채웠다면?
-          if (EnemySpawnInCurrentWave >= Selected.SpawnCount)
+          // 🌟 [핵심] 현재 '그룹'의 목표량을 다 채웠다면? -> 다음 그룹으로 넘어갑니다!
+          if (EnemySpawnInCurrentGroup >= CurrentGroup.SpawnCount)
           {
-             // 💡 타이머만 정지하고 "다음 웨이브 준비"는 여기서 하지 않습니다! (적들이 아직 살아있으므로)
-             GetWorldTimerManager().ClearTimer(SpawnTimerHandle);
-             UE_LOG(LogTemp, Warning, TEXT("이번 웨이브 소환 완료! 적 전멸 대기 중..."));
+             GetWorldTimerManager().ClearTimer(SpawnTimerHandle); // 현재 타이머 정지
+             
+             CurrentGroupIndex++;         // 다음 그룹으로 인덱스 이동
+             EnemySpawnInCurrentGroup = 0; // 그룹 내 소환 카운트 초기화
+
+             // 다음 그룹이 남아있다면, 그 그룹의 간격(Interval)으로 타이머 재시작!
+             if (CurrentWave.EnemyGroups.IsValidIndex(CurrentGroupIndex))
+             {
+                 float NextInterval = CurrentWave.EnemyGroups[CurrentGroupIndex].SpawnInterval;
+                 GetWorldTimerManager().SetTimer(SpawnTimerHandle, this, &AEnemySpawner::SpawnEnemy, NextInterval, true);
+             }
+             else
+             {
+                 UE_LOG(LogTemp, Warning, TEXT("이번 웨이브의 모든 몬스터 소환 완료! 적 전멸 대기 중..."));
+             }
           }
        }
     }
-    else
-    {
-       UE_LOG(LogTemp, Error, TEXT("데이터 테이블에서 %s 를 찾을 수 없거나 EnemyClass가 비어있습니다!"), *Selected.EnemyRowName.ToString());
-    }
 }
 
-// 💡 적이 죽을 때마다 호출될 함수
 void AEnemySpawner::OnEnemyDefeated()
 {
-    AliveEnemyCount--; // 적이 한 마리 죽었으므로 카운트 감소
+	AliveEnemyCount--; 
 
-    if (!EnemyList.IsValidIndex(CurrentSpawnLevel)) return;
+	if (!WaveList.IsValidIndex(CurrentSpawnLevel)) return;
 
-    // 목표 소환량을 다 소환했고 && 살아있는 적이 0마리라면 -> 진짜 웨이브 클리어!
-    if (EnemySpawnInCurrentWave >= EnemyList[CurrentSpawnLevel].SpawnCount && AliveEnemyCount <= 0)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("웨이브 %d 클리어! 카드 보상 등장!"), CurrentSpawnLevel + 1);
+	// 🌟 [핵심] "웨이브 전체 소환량을 다 채웠고" && "살아있는 적이 0마리"라면 -> 웨이브 클리어!
+	if (TotalEnemiesSpawnedInWave >= TotalEnemiesToSpawnInWave && AliveEnemyCount <= 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("웨이브 %d 클리어! 카드 보상 등장!"), CurrentSpawnLevel + 1);
 
-        CurrentSpawnLevel++; // 다음 웨이브 레벨로 증가
+		CurrentSpawnLevel++; 
 
-        // 🌟 1. 카드 UI 띄우기 및 시간 정지
-        if (AGridGameState* GS = Cast<AGridGameState>(GetWorld()->GetGameState()))
-        {
-            GS->ShowCardSelectUI(); 
-        }
+		if (AGridGameState* GS = Cast<AGridGameState>(GetWorld()->GetGameState()))
+		{
+			GS->ShowCardSelectUI(); 
+		}
 
-        // 🌟 2. 다음 웨이브 시작 타이머 세팅
-        // (현재 UI가 뜨면서 TimeDilation이 0.0이 되므로 타이머가 흐르지 않습니다.
-        // 플레이어가 카드를 선택해서 TimeDilation이 1.0이 되는 순간부터 타이머가 계산되어 다음 웨이브가 시작됩니다!)
-        GetWorldTimerManager().SetTimer(SpawnTimerHandle, this, &AEnemySpawner::SpawnNextWave, TimeBetweenWaves, false);
-    }
+		GetWorldTimerManager().SetTimer(SpawnTimerHandle, this, &AEnemySpawner::SpawnNextWave, TimeBetweenWaves, false);
+	}
 }

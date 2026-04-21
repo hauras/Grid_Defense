@@ -6,17 +6,12 @@
 #include "EnemySpawner.generated.h"
 
 class AEnemyBase;
+
 USTRUCT(BlueprintType)
-struct FSpawnWaveData
+struct FEnemyGroupData
 {
 	GENERATED_BODY()
 
-public:
-	// 어떤 블루프린트를 소환할 것인가? (BP_Enemy)
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	TSubclassOf<AEnemyBase> EnemyClass;
-
-	// 데이터 테이블에서 어떤 Row를 적용할 것인가? (Dragon_Fire, Dragon_Ice 등)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FName EnemyRowName;
 
@@ -25,6 +20,16 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	float SpawnInterval = 1.0f;
+};
+
+USTRUCT(BlueprintType)
+struct FWaveData
+{
+	GENERATED_BODY()
+
+	// 💡 하나의 웨이브 안에 여러 종류의 몬스터를 넣을 수 있는 '배열'
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TArray<FEnemyGroupData> EnemyGroups;
 };
 
 UCLASS()
@@ -48,7 +53,7 @@ protected:
 	TObjectPtr<USkeletalMeshComponent> SpawnerMesh;
 	
 	UPROPERTY(EditAnywhere, Category = "Spawning")
-	TArray<FSpawnWaveData> EnemyList;
+	TArray<FWaveData> WaveList;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spawning")
 	int32 CurrentSpawnLevel = 0;
@@ -65,7 +70,11 @@ protected:
 	
 	FTimerHandle SpawnTimerHandle;
 
-	int32 EnemySpawnInCurrentWave = 0;
+	int32 CurrentGroupIndex = 0;           // 현재 웨이브 안에서 몇 번째 그룹(소대)을 소환 중인가?
+	int32 EnemySpawnInCurrentGroup = 0;    // 현재 그룹에서 몇 마리나 소환했는가?
+    
+	int32 TotalEnemiesToSpawnInWave = 0;   // 이번 웨이브 전체 목표 마릿수 (클리어 체크용)
+	int32 TotalEnemiesSpawnedInWave = 0;
 
 	void SpawnNextWave();
 	void SpawnEnemy();

@@ -57,6 +57,9 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effects")
 	TObjectPtr<UNiagaraSystem> HitEffect;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sound")
+	TObjectPtr<USoundBase> HitSound;
+	
 	UPROPERTY()
 	TObjectPtr<APoolManager> CachedPoolManager;
 

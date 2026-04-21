@@ -175,7 +175,6 @@ void AProjectileBase::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UP
 
 	if (HitEnemy && OtherActor != this && OtherActor != GetOwner())
 	{
-		UE_LOG(LogTemp, Error, TEXT("[%s] OnHit 발생! 맞은 적: %s / 입힌 데미지: %f"), *GetName(), *HitEnemy->GetName(), ProjectileDamage);
 		UGameplayStatics::ApplyDamage(
 		   OtherActor,                 
 		   ProjectileDamage,           
@@ -193,7 +192,12 @@ void AProjectileBase::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UP
 			   GetActorRotation()  
 			);
 		}
-        
+
+		if (HitSound)
+		{
+			UGameplayStatics::PlaySoundAtLocation(this, HitSound, GetActorLocation(), 0.5f);
+			
+		}
 		ReturnToManager(); 
 	}
 }
