@@ -52,6 +52,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Game")
 	void GameClear();
 
+	UFUNCTION(BlueprintCallable, Category = "GameFlow")
+	float CycleGameSpeed();
 	
 protected:
 	virtual void BeginPlay() override;
@@ -70,4 +72,6 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, Category = "UI")
 	TSubclassOf<class UUserWidget> GameClearUIClass;
+
+	int32 CurrentSpeedState = 1;
 };

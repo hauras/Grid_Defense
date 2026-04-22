@@ -130,3 +130,20 @@ void AGridGameMode::GameClear()
 		}
 	}
 }
+
+float AGridGameMode::CycleGameSpeed()
+{
+	// 1 -> 2 -> 4 -> 1 순환
+	if (CurrentSpeedState == 1) CurrentSpeedState = 2;
+	else if (CurrentSpeedState == 2) CurrentSpeedState = 4;
+	else CurrentSpeedState = 1;
+
+	// 배속 적용
+	float TimeScale = CurrentSpeedState;
+	UGameplayStatics::SetGlobalTimeDilation(GetWorld(), TimeScale);
+    
+	UE_LOG(LogTemp, Warning, TEXT("게임 배속 변경: %fx"), TimeScale);
+
+	// 바뀐 속도를 UI한테 알려줍니다!
+	return TimeScale; 
+}
