@@ -5,6 +5,9 @@
 > **C++, 언리얼 기반 게임 클라이언트 프로그래머.** <br>
 > 1 프레임의 성능 최적화를 위해 끝까지 파고드는 개발자 하정빈입니다. "동작하는 코드"를 넘어 "성능과 구조가 아름다운 코드"를 지향하며, 엔진 레벨의 깊이 있는 이해를 바탕으로 문제를 해결합니다.
 
+### 🛠️ Tech Stack
+<img src="https://img.shields.io/badge/C++-00599C?style=flat-square&logo=c%2B%2B&logoColor=white"/> <img src="https://img.shields.io/badge/Unreal Engine 5-0E1128?style=flat-square&logo=unrealengine&logoColor=white"/> <img src="https://img.shields.io/badge/Visual Studio-5C2D91?style=flat-square&logo=visualstudio&logoColor=white"/>
+
 ---
 
 ## 목차<a name="table-of-contents"></a>
@@ -72,9 +75,11 @@
 
 언리얼 엔진 5의 C++를 기반으로 개발한 그리드 기반 타워 디펜스 게임입니다. 단순히 타워를 짓는 재미를 넘어, **Flow Field(BFS)** 알고리즘을 통해 수백 마리의 유닛이 실시간으로 변화하는 지형에 맞춰 최적의 경로를 찾아가는 지능형 시스템을 구축했습니다. 특히 클라이언트 사이드에서의 **런타임 연산 최적화**와 복합 데이터 직렬화를 통한 **정교한 세이브/로드 구현**에 집중했습니다.
 
-> **💡 [최고의 하이라이트 움짤 1개 삽입 추천]**
->
-> * **추천 장면:** 수많은 몬스터가 넥서스로 향해 걸어가고 있을 때, 유저가 타워를 지어 길을 막자 몬스터들이 일제히 경로를 수정하여 돌아가는 화려한 장면 (5초 내외)
+<div align="center">
+  <img src="여기에_메인_하이라이트_GIF_경로_삽입" alt="게임 메인 플레이 화면" width="80%">
+  <br>
+  <i>(수많은 몬스터가 넥서스로 향하는 도중, 유저의 타워 건설로 경로가 실시간 우회되는 모습)</i>
+</div>
 
 <br>
 
@@ -95,6 +100,7 @@
 전통적인 길찾기 알고리즘의 연산 병목 현상을 극복하고, 디펜스 게임에 최적화된 그룹 경로 탐색 시스템을 구현했습니다.
 
 <div align="center">
+  <img src="여기에_경로_변경_GIF_경로_삽입" alt="실시간 경로 재계산 로직" width="80%">
   <br>
   <i>"개별 유닛의 연산을 배제하고, 그리드 타일에 구워진 방향 벡터(Vector)만 참조하여 이동하는 O(1) 비용의 고효율 길찾기 시스템"</i>
 </div>
@@ -113,6 +119,10 @@
 
 유저의 자유로운 건설을 보장하되, 게임 로직의 붕괴를 사전에 방지하는 정교한 시뮬레이션 시스템입니다.
 
+<div align="center">
+  <img src="여기에_건설_거부_UI_GIF_경로_삽입" alt="건설 불가 시뮬레이션" width="80%">
+</div>
+
 **1. 가상 점유 시뮬레이션 및 트랜잭션(Transaction) 로직**
 * 유저가 타워 설치를 시도하는 찰나, 맵 배열의 해당 인덱스를 임시로 '장애물'로 변경한 뒤 BFS 탐색을 돌려 스포너에서 출구까지의 경로 비용(`FlowCost`)이 유효한지 실시간으로 검증합니다.
 * 경로가 완전히 단절될 경우(Cost가 최대치 도달), 타워 건설 및 재화 소모를 원천 차단하고 그리드를 원래 상태로 롤백하는 예외 처리 파이프라인을 구축했습니다.
@@ -123,6 +133,10 @@
 
 수많은 유닛과 투사체가 쉴 새 없이 생성되고 파괴되는 디펜스 게임의 특성을 고려하여, 엔진 메모리와 가비지 컬렉터(GC) 부하를 최소화했습니다.
 
+<div align="center">
+  <img src="여기에_최적화_프레임_이미지_경로_삽입" alt="오브젝트 풀링 최적화 확인" width="80%">
+</div>
+
 **1. Actor Life-cycle 최적화 및 렌더링 컬링**
 * 몬스터와 투사체를 매번 `SpawnActor`로 생성하지 않고, 런타임 이전에 미리 초기화해 두는 전용 `PoolManager`를 C++로 설계했습니다.
 * 비활성화 시 `Destroy` 대신 `SetActorHiddenInGame(true)` 및 `SetActorEnableCollision(false)`를 호출하여 물리 및 렌더링 연산만 차단한 채 큐(Queue)에 반환함으로써 메모리 단편화와 스파이크 렉을 방지했습니다.
@@ -132,6 +146,10 @@
 ### 💾 [데이터 제어] 복합 데이터 직렬화 및 게임 상태 복구 <a name="save-system"></a>
 
 플레이어의 피로도를 줄이고 진행 상황을 안전하게 보관하기 위해 정교한 Serialization(직렬화) 파이프라인을 구축했습니다.
+
+<div align="center">
+  <img src="여기에_세이브로드_GIF_경로_삽입" alt="세이브 및 로드 복구" width="80%">
+</div>
 
 **1. 복합 데이터 Save & Load 시스템**
 * 단순한 재화(골드, 생명력) 저장뿐만 아니라, **랜덤하게 생성된 맵 레이아웃 정보(바위 위치 등)**와 **배치된 타워들의 종류/그리드 좌표**를 구조체 배열 단위로 압축하여 저장 파일(`USaveGame`)에 기록합니다.
@@ -155,12 +173,26 @@
 * **🟢 해결 방법 (Predictive BFS Simulation):**
   * `AddTower` 함수 내부에 **가상 검증 로직**을 도입했습니다. 타워 생성 명령이 들어오면 해당 그리드의 상태를 먼저 `Walkable = false`로 임시 변경한 뒤 즉시 `UpdateFlowField`를 돌립니다.
   * 이후 스폰 지점의 도달 비용(`FlowCost`)을 확인하여, 비용이 99999(무한대)일 경우 유저에게 에러 메시지를 띄우고 상태를 즉시 롤백(`Walkable = true`)하도록 구현했습니다.
-* **✨ 결과:** 시스템 로직이 붕괴될 수 있는 유저의 악의적인/실수적인 플레이를 클라이언트 단에서 완벽하게 차단하여 게임의 무결성을 지켜냈습니다.
 
-### 3. 대량의 투사체 및 몬스터 스폰 시 프레임 스파이크 최적화 <a name="boss-optimization"></a>
-* **🔴 문제 상황:** 웨이브 후반부에 수많은 몬스터가 등장하고 다수의 타워가 초당 수십 발의 투사체를 난사할 때 화면이 간헐적으로 뚝뚝 끊기는 프레임 스파이크 현상이 발생했습니다.
-* **🔍 원인 분석:** 언리얼 엔진의 `SpawnActor`와 `Destroy` 호출은 내부적으로 메모리 할당과 가비지 컬렉션(GC)을 유발하는 무거운 작업인데, 이를 메인 스레드에서 매 프레임 수십 번씩 호출하며 CPU 오버헤드가 발생했습니다.
-* **🟢 해결 방법 (High-Performance Object Pooling):**
-  * 빈번하게 파괴되는 투사체 액터를 위해 C++ 기반의 `ObjectPool`을 구현했습니다.
-  * 발사 시점에 새로운 메모리를 할당(`New`)하는 대신 비활성 상태의 액터를 큐에서 꺼내 `SetActorLocation`으로 위치만 이동시키고 렌더링을 켜는 방식으로 전환하여 컨스트럭션 스크립트 실행 비용을 완전히 제거했습니다.
-* **✨ 결과:** 수백 개의 이펙트와 객체가 난무하는 극후반부 스테이지에서도 가비지 컬렉터의 개입을 최소화하여, 메인 스레드의 프레임 타임(Frame Time)을 안정적으로 방어하는 최적화를 이뤄냈습니다.
+  <details>
+  <summary><b>💡 핵심 C++ 로직 보기 (클릭하여 펼치기)</b></summary>
+
+  ```cpp
+  // AGridManager::IsPathValidAfterPlacement
+  // 타워 건설 전 맵이 막히는지 가상(Simulation) 검증
+  bool AGridManager::IsPathValidAfterPlacement(FIntPoint GridIndex)
+  {
+      // 1. 해당 그리드를 임시로 점유(장애물 처리)
+      GridData[GridIndex].bIsWalkable = false;
+      
+      // 2. Flow Field (BFS) 가상 재계산
+      UpdateFlowField_Simulation(); 
+      
+      // 3. 스폰 지점의 Cost가 무한대(단절)인지 확인
+      bool bIsValid = (GridData[SpawnIndex].FlowCost < MAX_COST);
+      
+      // 4. 원래 상태로 안전하게 롤백
+      GridData[GridIndex].bIsWalkable = true; 
+      
+      return bIsValid;
+  }
