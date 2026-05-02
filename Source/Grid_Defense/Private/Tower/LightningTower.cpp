@@ -1,11 +1,11 @@
-
-
 #include "Tower/LightningTower.h"
 #include "NiagaraFunctionLibrary.h"
 #include "Enemy/EnemyBase.h"
 #include "Kismet/GameplayStatics.h"
+#include "Kismet/KismetSystemLibrary.h"
 #include "Projectile/EffectActor.h"
 #include "Projectile/PoolManager.h"
+#include "GridGameplayTags.h"
 
 ALightningTower::ALightningTower()
 {
@@ -14,37 +14,36 @@ ALightningTower::ALightningTower()
 void ALightningTower::Fire()
 {
 	if (!CurrentTarget) return;
-	TArray<AActor*> HitActors;
+	if (StateTag.HasTagExact(FGridGameplayTags::Get().State_Stun)) return;
 
+	TArray<AActor*> HitActors;
 	ExecuteChain(CurrentTarget, 0, HitActors);
 }
 
-void ALightningTower::ExecuteChain(AActor* Target, int32 CurrentChainCount, TArray<AActor*> HitActors) // & 삭제!
+void ALightningTower::ExecuteChain(AActor* Target, int32 CurrentChainCount, TArray<AActor*> HitActors)
 {
-	int32 FinalMaxChain = MaxChainCount + CurrentChainBonus;
-	
-	if (!IsValid(Target) || CurrentChainCount >= FinalMaxChain || HitActors.Contains(Target)) return;
+	if (!IsValid(Target) || !MyData) return;
 
-	if (MyData)
-	{
-		float FinalDamage = MyData->Damage * CurrentDamageMultiplier;
-		
-		UGameplayStatics::ApplyDamage(
-			Target,
-			MyData->Damage,
-			GetInstigatorController(),
-			this,
-			UDamageType::StaticClass()
-			);
-	}
+	const int32 FinalMaxChain = MyData->ChainCount + CurrentChainBonus;
+	const float FinalChainRange = MyData->ChainRange;
 
-	if (LightningEffectClass) 
+	if (CurrentChainCount >= FinalMaxChain || HitActors.Contains(Target)) return;
+
+	const float FinalDamage = MyData->Damage * CurrentDamageMultiplier;
+	UGameplayStatics::ApplyDamage(
+		Target,
+		FinalDamage,
+		GetInstigatorController(),
+		this,
+		UDamageType::StaticClass()
+	);
+
+	if (LightningEffectClass && CachedPoolManager)
 	{
 		AActor* PooledActor = CachedPoolManager->GetFromPool(LightningEffectClass, Target->GetActorLocation(), FRotator::ZeroRotator);
-   
 		if (AEffectActor* Effect = Cast<AEffectActor>(PooledActor))
 		{
-			Effect->PlayEffect(0.2f); 
+			Effect->PlayEffect(0.2f);
 		}
 	}
 
@@ -52,7 +51,7 @@ void ALightningTower::ExecuteChain(AActor* Target, int32 CurrentChainCount, TArr
 
 	TArray<AActor*> Overlaps;
 	TArray<TEnumAsByte<EObjectTypeQuery>> ObjectTypes;
-	ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_Pawn)); // 몬스터가 보통 Pawn 채널이므로 세팅
+	ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_Pawn));
 
 	TArray<AActor*> ActorsToIgnore;
 	ActorsToIgnore.Add(Target);
@@ -60,40 +59,34 @@ void ALightningTower::ExecuteChain(AActor* Target, int32 CurrentChainCount, TArr
 	UKismetSystemLibrary::SphereOverlapActors(
 		GetWorld(),
 		Target->GetActorLocation(),
-		ChainRange,
+		FinalChainRange,
 		ObjectTypes,
 		AEnemyBase::StaticClass(),
 		ActorsToIgnore,
 		Overlaps
-		);
+	);
 
 	AActor* NextTarget = nullptr;
-	float MinDistance = ChainRange + 1.0f;
+	float MinDistance = FinalChainRange + 1.0f;
 
 	for (AActor* OverlapActor : Overlaps)
 	{
 		AEnemyBase* Enemy = Cast<AEnemyBase>(OverlapActor);
+		if (!Enemy || Enemy->IsDead() || HitActors.Contains(Enemy)) continue;
 
-		if (Enemy && !Enemy->IsDead() && !HitActors.Contains(Enemy))
+		float Distance = FVector::Distance(Target->GetActorLocation(), Enemy->GetActorLocation());
+		if (Distance < MinDistance)
 		{
-			float Distance = FVector::Distance(Target->GetActorLocation(), Enemy->GetActorLocation());
-
-			if (Distance < MinDistance)
-			{
-				MinDistance = Distance;
-				NextTarget = Enemy;
-			}
+			MinDistance = Distance;
+			NextTarget = Enemy;
 		}
 	}
 
 	if (NextTarget)
 	{
-
-		FTimerHandle ChainTimerHandle;
+		FTimerHandle& NewHandle = ChainTimerHandles.AddDefaulted_GetRef();
 		FTimerDelegate ChainDelegate;
-
 		ChainDelegate.BindUObject(this, &ALightningTower::ExecuteChain, NextTarget, CurrentChainCount + 1, HitActors);
-
-		GetWorld()->GetTimerManager().SetTimer(ChainTimerHandle, ChainDelegate, 0.15f, false);
+		GetWorld()->GetTimerManager().SetTimer(NewHandle, ChainDelegate, 0.15f, false);
 	}
 }

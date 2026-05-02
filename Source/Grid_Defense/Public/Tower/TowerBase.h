@@ -1,4 +1,3 @@
-
 #pragma once
 
 #include "CoreMinimal.h"
@@ -12,108 +11,109 @@ class AGridManager;
 class UWidgetComponent;
 
 UENUM(BlueprintType)
-enum class ETargetPriority  : uint8
+enum class ETargetPriority : uint8
 {
-	First UMETA(DisplayName = "First (Closest to Nexus"),
-	Strong,
-	Weak,
+    First UMETA(DisplayName = "First (Closest to Nexus)"),
+    Strong,
+    Weak,
 };
+
 class APoolManager;
 class AProjectileBase;
 
 UCLASS()
 class GRID_DEFENSE_API ATowerBase : public AActor
 {
-	GENERATED_BODY()
-	
-public:	
-	ATowerBase();
+    GENERATED_BODY()
+    
+public: 
+    ATowerBase();
 
-	virtual void InitTower(UTowerData* TowerData, bool bIsPreview = false);
+    virtual void InitTower(UTowerData* TowerData, bool bIsPreview = false);
 
-	// 타워 태그
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Combat")
-	FGameplayTagContainer TowerTag;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Combat")
+    FGameplayTagContainer TowerTag;
 
-	// 타워 데미지 타입 태그
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
-	FGameplayTag TowerDamageTag;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
+    FGameplayTag TowerDamageTag;
 
-	// CC기 태그
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
-	FGameplayTagContainer StateTag;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
+    FGameplayTagContainer StateTag;
 
-	void ApplyStun(float StunDuration);
-	
-	UTowerData* GetTowerData() const { return MyData; }
+    void ApplyStun(float StunDuration);
+    
+    UTowerData* GetTowerData() const { return MyData; }
+    bool IsPreview() const { return bIsPreviewMode; }
 
-	bool IsPreview() const { return bIsPreviewMode; }
+    UPROPERTY(VisibleAnywhere, Category = "Grid")
+    int32 GridX;
 
-	UPROPERTY(VisibleAnywhere, Category = "Grid")
-	int32 GridX;
+    UPROPERTY(VisibleAnywhere, Category = "Grid")
+    int32 GridY;
 
-	UPROPERTY(VisibleAnywhere, Category = "Grid")
-	int32 GridY;
+    UFUNCTION()
+    void ReceiveBuffBroadcast(const FCardData& CardInfo);
 
-	UFUNCTION()
-	void ReceiveBuffBroadcast(const FCardData& CardInfo);
 protected:
+    virtual void BeginPlay() override;
+    
+    UPROPERTY(VisibleAnywhere, Category = "Components")
+    TObjectPtr<USceneComponent> Root;
+    
+    UPROPERTY(VisibleAnywhere, Category = "Components")
+    TObjectPtr<UStaticMeshComponent> MeshComponent;
 
-	virtual void BeginPlay() override;
-	
-	UPROPERTY(VisibleAnywhere, Category = "Components")
-	TObjectPtr<USceneComponent> Root;
-	
-	UPROPERTY(VisibleAnywhere, Category = "Components")
-	TObjectPtr<UStaticMeshComponent> MeshComponent;
+    UPROPERTY(VisibleAnywhere, Category = "Components")
+    TObjectPtr<UDecalComponent> RangeDecal;
 
-	UPROPERTY(VisibleAnywhere, Category = "Components")
-	TObjectPtr<UDecalComponent> RangeDecal;
+    UPROPERTY(EditAnywhere, Category = "Effects")
+    TObjectPtr<USoundBase> AttackSound;
+    
+    UPROPERTY()
+    TObjectPtr<UTowerData> MyData;
 
-	UPROPERTY(EditAnywhere, Category = "Effects")
-	TObjectPtr<USoundBase> AttackSound;
-	
-	UPROPERTY()
-	TObjectPtr<UTowerData> MyData;
+    UPROPERTY(EditDefaultsOnly, Category = "Tower")
+    TSubclassOf<AProjectileBase> ProjectileClass;
 
-	UPROPERTY(EditDefaultsOnly, Category = "Tower")
-	TSubclassOf<AProjectileBase> ProjectileClass;
+    bool bIsPreviewMode = false;
 
-	bool bIsPreviewMode = false;
+    // [수정] TObjectPtr로 변경
+    UPROPERTY()
+    TObjectPtr<AActor> CurrentTarget;
 
-	UPROPERTY()
-	AActor* CurrentTarget;
+    FTimerHandle AttackTimerHandle;
+    FTimerHandle StunTimerHandle;
 
-	FTimerHandle AttackTimerHandle;
-	FTimerHandle StunTimerHandle;
+    void EndStun();
+    void FindTarget();
 
-	void EndStun();
-	void FindTarget();
+    virtual void Fire();
 
-	virtual void Fire();
+    UPROPERTY()
+    TObjectPtr<APoolManager> CachedPoolManager;
 
-	UPROPERTY()
-	TObjectPtr<APoolManager> CachedPoolManager;
+    UPROPERTY()
+    TObjectPtr<AGridManager> CachedGridManager;
 
-	UPROPERTY()
-	TObjectPtr<AGridManager> CachedGridManager;
+    UPROPERTY(EditAnywhere, Category = "Tower")
+    ETargetPriority TargetPriority = ETargetPriority::First;
 
-	UPROPERTY(EditAnywhere, Category = "Tower")
-	ETargetPriority TargetPriority = ETargetPriority::First;
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Tower")
+    TObjectPtr<UWidgetComponent> StunWidget;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Tower")
-	TObjectPtr<UWidgetComponent> StunWidget;
+    UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Tower")
+    float CurrentDamageMultiplier = 1.0f;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Tower")
-	float CurrentDamageMultiplier = 1.0f; // 데미지 배율
-	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Tower")
-	float CurrentRangeMultiplier = 1.0f;       // 사거리 배율
-	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Tower")
-	float CurrentAttackSpeedMultiplier = 1.0f; // 공속 배율
-	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Tower")
-	int32 CurrentChainBonus = 0;               // 체인 추가 횟수
-	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Tower")
-	float CurrentSplashRadiusBonus = 0.0f;     // 스플래시 추가 범위
+    // [수정] CurrentRangeMultiplier 제거 — 실제 사용처 없음
 
-	void UpdateAttackTimer();
+    UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Tower")
+    float CurrentAttackSpeedMultiplier = 1.0f;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Tower")
+    int32 CurrentChainBonus = 0;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Tower")
+    float CurrentSplashRadiusBonus = 0.0f;
+
+    void UpdateAttackTimer();
 };

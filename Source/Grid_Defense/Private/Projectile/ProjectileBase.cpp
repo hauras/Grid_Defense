@@ -1,5 +1,3 @@
-
-
 #include "Projectile/ProjectileBase.h"
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -24,21 +22,19 @@ AProjectileBase::AProjectileBase()
 
 	MeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MeshComponent"));
 	MeshComponent->SetupAttachment(RootComponent);
-	MeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision); 
+	MeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
 	ProjectileMovement = CreateDefaultSubobject<UProjectileMovementComponent>(TEXT("ProjectileMovement"));
 	ProjectileMovement->UpdatedComponent = Collision;
 	ProjectileMovement->InitialSpeed = 1000.f;
 	ProjectileMovement->MaxSpeed = 1000.f;
-	ProjectileMovement->bRotationFollowsVelocity = true; 
+	ProjectileMovement->bRotationFollowsVelocity = true;
 	ProjectileMovement->bShouldBounce = false;
 	ProjectileMovement->ProjectileGravityScale = 0.0f;
-	
+
 	ProjectileComponent = CreateDefaultSubobject<UNiagaraComponent>(TEXT("ProjectileComponent"));
 	ProjectileComponent->SetupAttachment(RootComponent);
-
 	ProjectileComponent->bAutoActivate = true;
-	
 }
 
 void AProjectileBase::BeginPlay()
@@ -56,7 +52,6 @@ void AProjectileBase::BeginPlay()
 	}
 
 	CachedPoolManager = Cast<APoolManager>(UGameplayStatics::GetActorOfClass(GetWorld(), APoolManager::StaticClass()));
-	
 }
 
 void AProjectileBase::SetDamage(float Damage)
@@ -69,7 +64,7 @@ void AProjectileBase::FireInDirection(const FVector& ShootDirection)
 	if (Collision)
 	{
 		Collision->SetCollisionProfileName(TEXT("BlockAllDynamic"));
-		Collision->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics); 
+		Collision->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 		if (GetOwner())
 		{
 			Collision->IgnoreActorWhenMoving(GetOwner(), true);
@@ -78,23 +73,23 @@ void AProjectileBase::FireInDirection(const FVector& ShootDirection)
 
 	if (MeshComponent)
 	{
-		MeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision); 
+		// [수정] 풀에서 꺼낼 때 숨겨진 메시 다시 표시
+		MeshComponent->SetVisibility(true);
+		MeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	}
 
 	if (ProjectileComponent)
 	{
-		ProjectileComponent->Deactivate();   
-		ProjectileComponent->Activate(true); 
+		ProjectileComponent->Deactivate();
+		ProjectileComponent->Activate(true);
 	}
 
 	if (ProjectileMovement)
 	{
-		ProjectileMovement->SetUpdatedComponent(Collision); 
-       
+		ProjectileMovement->SetUpdatedComponent(Collision);
 		ProjectileMovement->Velocity = ShootDirection * ProjectileMovement->InitialSpeed;
 		ProjectileMovement->SetComponentTickEnabled(true);
-       
-		ProjectileMovement->Activate(true); 
+		ProjectileMovement->Activate(true);
 	}
 }
 
@@ -108,18 +103,15 @@ void AProjectileBase::FireAtTarget(AActor* TargetActor)
 			CachedTarget = Enemy;
 		}
 
-		// 1. 타겟의 현재 위치와 이동 속도(방향 포함)를 가져옵니다.
 		FVector TargetLocation = TargetActor->GetActorLocation();
 		FVector TargetVelocity = TargetActor->GetVelocity();
 
-		// 2. 총알이 타겟까지 날아가는 데 걸리는 시간(t)을 계산합니다. (시간 = 거리 / 속력)
 		float Distance = FVector::Dist(GetActorLocation(), TargetLocation);
 		float FlightTime = Distance / ProjectileMovement->InitialSpeed;
 
-		// 3. 타겟의 미래 위치를 계산합니다.
 		FVector PredictedLocation = TargetLocation + (TargetVelocity * FlightTime);
+		PredictedLocation.Z = TargetLocation.Z; // [수정] Z축 고정
 
-		// 4. 미래 위치를 향해 방향을 잡고 쏩니다!
 		FVector Direction = (PredictedLocation - GetActorLocation()).GetSafeNormal();
 		FireInDirection(Direction);
 	}
@@ -147,15 +139,15 @@ void AProjectileBase::ReturnToManager()
 	{
 		ProjectileComponent->Deactivate();
 	}
-    
+
 	if (Collision)
 	{
 		Collision->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	}
-    
+
 	if (MeshComponent)
 	{
-		MeshComponent->SetVisibility(false); 
+		MeshComponent->SetVisibility(false);
 	}
 
 	if (CachedPoolManager)
@@ -175,30 +167,32 @@ void AProjectileBase::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UP
 
 	if (HitEnemy && OtherActor != this && OtherActor != GetOwner())
 	{
+		AController* InstigatorController = GetOwner() ? GetOwner()->GetInstigatorController() : nullptr;
+
 		UGameplayStatics::ApplyDamage(
-		   OtherActor,                 
-		   ProjectileDamage,           
-		   nullptr,                    
-		   this,                       
-		   UDamageType::StaticClass()  
+			OtherActor,
+			ProjectileDamage,
+			InstigatorController,
+			this,
+			UDamageType::StaticClass()
 		);
 
 		if (HitEffect)
 		{
 			UNiagaraFunctionLibrary::SpawnSystemAtLocation(
-			   GetWorld(),
-			   HitEffect,
-			   GetActorLocation(), 
-			   GetActorRotation()  
+				GetWorld(),
+				HitEffect,
+				GetActorLocation(),
+				GetActorRotation()
 			);
 		}
 
 		if (HitSound)
 		{
 			UGameplayStatics::PlaySoundAtLocation(this, HitSound, GetActorLocation(), 0.5f);
-			
 		}
-		ReturnToManager(); 
+
+		ReturnToManager();
 	}
 }
 

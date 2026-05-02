@@ -1,11 +1,8 @@
-
-
 #include "Projectile/PoolManager.h"
 
 APoolManager::APoolManager()
 {
 	PrimaryActorTick.bCanEverTick = false;
-
 }
 
 AActor* APoolManager::GetFromPool(TSubclassOf<AActor> PoolClass, FVector Location, FRotator Rotation)
@@ -23,7 +20,6 @@ AActor* APoolManager::GetFromPool(TSubclassOf<AActor> PoolClass, FVector Locatio
 	{
 		FActorSpawnParameters SpawnParams;
 		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-		
 		SpawnedActor = GetWorld()->SpawnActor<AActor>(PoolClass, Location, Rotation, SpawnParams);
 	}
 
@@ -41,13 +37,15 @@ void APoolManager::ReturnToPool(AActor* ActorToReturn)
 {
 	if (!ActorToReturn) return;
 
-	ActorToReturn->SetActorHiddenInGame(true);    
-	ActorToReturn->SetActorEnableCollision(false); 
+	UClass* Class = ActorToReturn->GetClass();
+	FPoolArray& Pool = ObjectPool.FindOrAdd(Class);
+
+	if (Pool.PooledActors.Contains(ActorToReturn)) return;
+
+	ActorToReturn->SetActorHiddenInGame(true);
+	ActorToReturn->SetActorEnableCollision(false);
 	ActorToReturn->SetActorTickEnabled(false);
 
-	UClass* Class = ActorToReturn->GetClass();
-
-	
-	ObjectPool.FindOrAdd(Class).PooledActors.AddUnique(ActorToReturn);
+	Pool.PooledActors.Add(ActorToReturn);
 }
 

@@ -1,4 +1,3 @@
-
 #pragma once
 
 #include "CoreMinimal.h"
@@ -8,8 +7,9 @@
 
 class UCameraComponent;
 class USpringArmComponent;
-class UInputMappingContext;
 class UInputAction;
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnCameraMoved);
 
 UCLASS()
 class GRID_DEFENSE_API ACamera : public APawn
@@ -25,9 +25,10 @@ public:
 
 	void Move(const FInputActionValue& Value);
 	void Zoom(const FInputActionValue& Value);
-	
-protected:
 
+	UPROPERTY(BlueprintAssignable)
+	FOnCameraMoved OnCameraMoved;
+protected:
 	UPROPERTY(VisibleAnywhere, Category = "Camera")
 	TObjectPtr<USceneComponent> RootScene;
 
@@ -36,14 +37,13 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, Category = "Camera")
 	TObjectPtr<UCameraComponent> Camera;
-	
+    
 	UPROPERTY(EditAnywhere, Category = "Input")
 	TObjectPtr<UInputAction> MoveAction;
 
 	UPROPERTY(EditAnywhere, Category = "Input")
 	TObjectPtr<UInputAction> ZoomAction;
 
-	// 카메라 설정
 	UPROPERTY(EditAnywhere, Category = "Camera Settings")
 	float ZoomSpeed = 500.f;
 
@@ -55,8 +55,6 @@ protected:
 
 	UPROPERTY(EditAnywhere, Category = "Camera Settings")
 	float MoveSpeed = 1500.f;
-	
-	float TargetZoom;
 
 	UPROPERTY(EditAnywhere, Category = "Camera Settings")
 	bool bEnableScroll = true;
@@ -64,5 +62,8 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Camera Settings")
 	float Margin = 50.f;
 
+private:
+	float TargetZoom;
 	void HandleScroll(float DeltaTime);
+	void MoveCamera(const FVector& Direction, float DeltaTime);
 };

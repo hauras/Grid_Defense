@@ -26,7 +26,7 @@ void AEffectActor::PlayEffect(float LifeTime)
     
 	if (NiagaraComp)
 	{
-		NiagaraComp->Activate(true); // 처음부터 다시 재생
+		NiagaraComp->Activate(true); 
 	}
 
 	GetWorldTimerManager().SetTimer(ReturnTimerHandle, this, &AEffectActor::ReturnToManager, LifeTime, false);

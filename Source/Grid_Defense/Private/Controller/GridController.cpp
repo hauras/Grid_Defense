@@ -6,6 +6,8 @@
 #include "Data/TowerData.h"
 #include "Tower/TowerBase.h"
 #include "Blueprint/UserWidget.h"
+#include "Camera/Camera.h"
+#include "UI/Widget/TowerSellWidget.h"
 
 AGridController::AGridController()
 {
@@ -20,7 +22,7 @@ void AGridController::BeginPlay()
 	Super::BeginPlay();
 
 	FInputModeGameAndUI InputModeData; 
-	InputModeData.SetHideCursorDuringCapture(false); // 드래그할 때 커서 숨김 방지
+	InputModeData.SetHideCursorDuringCapture(false);
 	SetInputMode(InputModeData);
 
 	GridManager = Cast<AGridManager>(UGameplayStatics::GetActorOfClass(GetWorld(), AGridManager::StaticClass()));
@@ -33,7 +35,11 @@ void AGridController::BeginPlay()
 		}
 	}
 
-	
+	ACamera* Camera = Cast<ACamera>(UGameplayStatics::GetActorOfClass(GetWorld(), ACamera::StaticClass()));
+	if (Camera)
+	{
+		Camera->OnCameraMoved.AddDynamic(this, &AGridController::CloseSellWidget);
+	}
 }
 
 void AGridController::PlayerTick(float DeltaTime)
@@ -45,23 +51,15 @@ void AGridController::PlayerTick(float DeltaTime)
 void AGridController::SetupInputComponent()
 {
 	Super::SetupInputComponent();
-	
-	if (UEnhancedInputComponent* EnhancedInputComponent = CastChecked<UEnhancedInputComponent>(InputComponent))
-	{
-		EnhancedInputComponent->BindAction(ClickAction, ETriggerEvent::Started, this, &AGridController::OnMouseClick);
 
-		if (PauseAction)
-		{
-			EnhancedInputComponent->BindAction(PauseAction, ETriggerEvent::Triggered, this, &AGridController::TogglePause);
-		}
-	}
+	UEnhancedInputComponent* EIC = CastChecked<UEnhancedInputComponent>(InputComponent);
 
-	
-	InputComponent->BindKey(EKeys::One, IE_Pressed, this, &AGridController::OnKey1Pressed);
-	InputComponent->BindKey(EKeys::Two, IE_Pressed, this, &AGridController::OnKey2Pressed);
-	InputComponent->BindKey(EKeys::Three, IE_Pressed, this, &AGridController::OnKey3Pressed);
-	InputComponent->BindKey(EKeys::Four, IE_Pressed, this, &AGridController::OnKey4Pressed);
-
+	EIC->BindAction(ClickAction,         ETriggerEvent::Started, this, &AGridController::OnMouseClick);
+	EIC->BindAction(PauseAction,         ETriggerEvent::Triggered, this, &AGridController::TogglePause);
+	EIC->BindAction(SelectTower1Action,  ETriggerEvent::Started, this, &AGridController::OnSelectTower1);
+	EIC->BindAction(SelectTower2Action,  ETriggerEvent::Started, this, &AGridController::OnSelectTower2);
+	EIC->BindAction(SelectTower3Action,  ETriggerEvent::Started, this, &AGridController::OnSelectTower3);
+	EIC->BindAction(SelectTower4Action,  ETriggerEvent::Started, this, &AGridController::OnSelectTower4);
 }
 
 void AGridController::CursorTrace()
@@ -75,6 +73,14 @@ void AGridController::CursorTrace()
 	int32 GridX, GridY;
 	if (GetGridLocationUnderCursor(GridX, GridY))
 	{
+		int32 Index = GridManager->GetIndex(GridX, GridY);
+		const TArray<FGridInfo>& GridArray = GridManager->GetGridArray();
+		if (GridArray.IsValidIndex(Index) && GridArray[Index].OccupyingTower)
+		{
+			if (CurrentPreviewActor) CurrentPreviewActor->SetActorHiddenInGame(true);
+			return;
+		}
+		
 		float TileSize = GridManager->GetTileSize(); 
 		FVector GridCenter = GridManager->GetActorLocation() + 
 						FVector(GridX * TileSize, GridY * TileSize, 50.0f);
@@ -104,12 +110,65 @@ void AGridController::CursorTrace()
 	}
 }
 
+void AGridController::ShowSellWidget(int32 GridX, int32 GridY)
+{
+	const TArray<FGridInfo>& GridArray = GridManager->GetGridArray();
+	int32 Index = GridManager->GetIndex(GridX, GridY);
+	if (!GridArray.IsValidIndex(Index)) return;
+
+	ATowerBase* Tower = GridArray[Index].OccupyingTower;
+	if (!Tower) return;
+
+	int32 RefundAmount = Tower->GetTowerData()->BuildCost * 0.5f;
+
+	UTowerSellWidget* SellWidget = CreateWidget<UTowerSellWidget>(this, TowerSellWidgetClass);
+	if (SellWidget)
+	{
+		SellWidget->SetTowerInfo(GridX, GridY, RefundAmount);
+		SellWidget->AddToViewport();
+		ActiveSellWidget = SellWidget;
+
+		FVector2D ScreenPos;
+		if (ProjectWorldLocationToScreen(Tower->GetActorLocation(), ScreenPos))
+		{
+			SellWidget->SetPositionInViewport(FVector2D(ScreenPos.X + 50.f, ScreenPos.Y - 50.f));
+		}
+		
+		FInputModeGameAndUI InputMode;
+		InputMode.SetHideCursorDuringCapture(false);
+		SetInputMode(InputMode);
+	}
+}
+
+void AGridController::CloseSellWidget()
+{
+	if (ActiveSellWidget)
+	{
+		ActiveSellWidget->RemoveFromParent();
+		ActiveSellWidget = nullptr;
+	}
+}
+
 void AGridController::OnMouseClick()
 {
-	if (!SelectedTowerData || !bBuildModeActive) return;
+	if (!GridManager) return;
 
 	int32 GridX, GridY;
-	if (GetGridLocationUnderCursor(GridX, GridY))
+	if (!GetGridLocationUnderCursor(GridX, GridY)) return;
+
+	const TArray<FGridInfo>& GridArray = GridManager->GetGridArray();
+	int32 Index = GridManager->GetIndex(GridX, GridY);
+	if (!GridArray.IsValidIndex(Index)) return;
+
+	// 타워가 있는 타일 클릭 → 판매 UI 표시 (빌드 모드 여부 무관)
+	if (GridArray[Index].OccupyingTower)
+	{
+		ShowSellWidget(GridX, GridY);
+		return;
+	}
+
+	// 빌드 모드이고 타워가 선택된 경우 → 타워 배치
+	if (bBuildModeActive && SelectedTowerData)
 	{
 		GridManager->AddTower(GridX, GridY, SelectedTowerData);
 	}
@@ -128,7 +187,6 @@ void AGridController::SetSelectedTower(UTowerData* NewData)
 	}
 }
 
-// 일시정지
 void AGridController::TogglePause()
 {
 	if (PauseMenuClass)
@@ -147,37 +205,10 @@ void AGridController::TogglePause()
 	}
 }
 
-void AGridController::OnKey1Pressed()
-{
-	if (TowerData.IsValidIndex(0)) 
-	{
-		SetSelectedTower(TowerData[0]);
-	}
-}
-
-void AGridController::OnKey2Pressed()
-{
-	if (TowerData.IsValidIndex(1)) 
-	{
-		SetSelectedTower(TowerData[1]);
-	}
-}
-
-void AGridController::OnKey3Pressed()
-{
-	if (TowerData.IsValidIndex(2)) 
-	{
-		SetSelectedTower(TowerData[2]);
-	}
-}
-
-void AGridController::OnKey4Pressed()
-{
-	if (TowerData.IsValidIndex(3)) 
-	{
-		SetSelectedTower(TowerData[3]);
-	}
-}
+void AGridController::OnSelectTower1() { if (TowerData.IsValidIndex(0)) SetSelectedTower(TowerData[0]); }
+void AGridController::OnSelectTower2() { if (TowerData.IsValidIndex(1)) SetSelectedTower(TowerData[1]); }
+void AGridController::OnSelectTower3() { if (TowerData.IsValidIndex(2)) SetSelectedTower(TowerData[2]); }
+void AGridController::OnSelectTower4() { if (TowerData.IsValidIndex(3)) SetSelectedTower(TowerData[3]); }
 
 bool AGridController::GetGridLocationUnderCursor(int32& OutX, int32& OutY)
 {
@@ -188,7 +219,7 @@ bool AGridController::GetGridLocationUnderCursor(int32& OutX, int32& OutY)
 	{
 		FVector RelativeLocation = CursorHit.ImpactPoint - GridManager->GetActorLocation();
        
-		float TileSize = GridManager->GetTileSize(); // 이 Getter를 GridManager에 추가해야겠네요!
+		float TileSize = GridManager->GetTileSize();
 		float HalfTile = TileSize * 0.5f;
 
 		OutX = FMath::FloorToInt((RelativeLocation.X + HalfTile) / TileSize);

@@ -75,7 +75,7 @@ void AEnemyBase::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	if (bIsDead || !CachedGridManager) return;
+	if (bIsDead || !CachedGridManager || bIsAttackingNexus) return;
 
 	FVector MoveDirection = CachedGridManager->GetFlowDirection(GetActorLocation());
 
@@ -172,12 +172,9 @@ float AEnemyBase::TakeDamage(float DamageAmount, struct FDamageEvent const& Dama
         DamageTextComp->SetDamageText(AccumulatedDamage, TextColor);
     }
 
-    // 3. 타이머 갱신 (1.5초 동안 안 맞으면 누적 초기화 및 글자 숨김)
     GetWorldTimerManager().ClearTimer(DamageTextTimerHandle);
     GetWorldTimerManager().SetTimer(DamageTextTimerHandle, this, &AEnemyBase::ResetDamageText, 1.5f, false);
-    
-    // ==========================================
-
+	
     CurrentHP -= FinalDamage;
 
     OnHPChanged.Broadcast(CurrentHP, MaxHP);
@@ -194,14 +191,12 @@ void AEnemyBase::Die()
 	if (bIsDead) return; 
 	bIsDead = true;      
 
-	// ==========================================
-	// 🌟 [여기에 추가!] 스포너에게 사망 소식 알리기
-	// 맵에서 AEnemySpawner를 찾아서 OnEnemyDefeated()를 실행합니다.
+	GetWorldTimerManager().ClearTimer(NexusAttackTimerHandle);
+	
 	if (AEnemySpawner* Spawner = Cast<AEnemySpawner>(UGameplayStatics::GetActorOfClass(GetWorld(), AEnemySpawner::StaticClass())))
 	{
 		Spawner->OnEnemyDefeated();
 	}
-	// ==========================================
 
 	OnEnemyDied.Broadcast();
     
@@ -236,8 +231,13 @@ void AEnemyBase::ApplySlow(float SlowDuration)
 	if (!GameplayTags.HasTagExact(FGridGameplayTags::Get().State_Slow))
 	{
 		GameplayTags.AddTag(FGridGameplayTags::Get().State_Slow);
-
 		GetCharacterMovement()->MaxWalkSpeed = BaseMoveSpeed * 0.5f;
+
+		// 슬로우 아이콘 표시
+		if (UEnemyHPWidget* HPWidget = Cast<UEnemyHPWidget>(HPBarWidget->GetUserWidgetObject()))
+		{
+			HPWidget->SetSlowVisible(true);
+		}
 	}
 	GetWorldTimerManager().SetTimer(SlowTimerHandle, this, &AEnemyBase::RemoveSlow, SlowDuration, false);
 }
@@ -245,21 +245,41 @@ void AEnemyBase::ApplySlow(float SlowDuration)
 void AEnemyBase::RemoveSlow()
 {
 	GameplayTags.RemoveTag(FGridGameplayTags::Get().State_Slow);
-
 	GetCharacterMovement()->MaxWalkSpeed = BaseMoveSpeed;
+
+	// 슬로우 아이콘 숨김
+	if (UEnemyHPWidget* HPWidget = Cast<UEnemyHPWidget>(HPBarWidget->GetUserWidgetObject()))
+	{
+		HPWidget->SetSlowVisible(false);
+	}
+}
+
+void AEnemyBase::AttackNexus()
+{
+	if (bIsDead) return;
+
+	if (AGridGameMode* GM = Cast<AGridGameMode>(UGameplayStatics::GetGameMode(GetWorld())))
+	{
+		GM->DecreaseLife(MyLifeDamage);
+        
+
+		// (선택) 여기에 몬스터 공격 애니메이션 몽타주가 있다면 재생
+		// if (AttackMontage) PlayAnimMontage(AttackMontage);
+	}
 }
 
 void AEnemyBase::ReachNexus()
 {
-	if (bIsDead) return;
-	bIsDead = true;
+	if (bIsDead || bIsAttackingNexus) return;
+    
+	bIsAttackingNexus = true;
+    
+	GetCharacterMovement()->StopMovementImmediately();
 
-	if (AEnemySpawner* Spawner = Cast<AEnemySpawner>(UGameplayStatics::GetActorOfClass(GetWorld(), AEnemySpawner::StaticClass())))
-	{
-		Spawner->OnEnemyDefeated();
-	}
+	AttackNexus();
 
-	Destroy();
+	GetWorldTimerManager().SetTimer(NexusAttackTimerHandle, this, &AEnemyBase::AttackNexus, 1.0f, true);
+    
 }
 
 

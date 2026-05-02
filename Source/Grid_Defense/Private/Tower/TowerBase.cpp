@@ -1,5 +1,3 @@
-
-
 #include "Tower/TowerBase.h"
 
 #include "GridGameplayTags.h"
@@ -31,9 +29,9 @@ ATowerBase::ATowerBase()
 	RangeDecal->SetVisibility(false); 
 
 	StunWidget = CreateDefaultSubobject<UWidgetComponent>(TEXT("StunWidget"));
-	StunWidget->SetupAttachment(RootComponent); // 포탑 몸체에 부착
-	StunWidget->SetWidgetSpace(EWidgetSpace::Screen); // 항상 카메라를 바라보게 설정
-	StunWidget->SetDrawSize(FVector2D(100.f, 40.f)); // 글씨 크기에 맞게 조절
+	StunWidget->SetupAttachment(RootComponent);
+	StunWidget->SetWidgetSpace(EWidgetSpace::Screen);
+	StunWidget->SetDrawSize(FVector2D(100.f, 40.f));
 	StunWidget->SetVisibility(false);
 }
 
@@ -48,13 +46,10 @@ void ATowerBase::InitTower(UTowerData* TowerData, bool bIsPreview)
 		MeshComponent->SetStaticMesh(MyData->PreviewMesh);
 	}
 
-	// 가중치 사용해서 사거리 표시
 	if (RangeDecal)
 	{
 		RangeDecal->SetUsingAbsoluteScale(true); 
-       
 		float VisualRadius = MyData->AttackRange * MyData->DecalMultiplier;
-
 		RangeDecal->DecalSize = FVector(2000.0f, VisualRadius, VisualRadius);
 
 		if (MyData->RangeDecalMaterial)
@@ -64,7 +59,6 @@ void ATowerBase::InitTower(UTowerData* TowerData, bool bIsPreview)
 		RangeDecal->SetVisibility(bIsPreviewMode);
 	}
 
-	// 2. 상태 설정 및 타이머
 	if (bIsPreviewMode)
 	{
 		MeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -74,35 +68,28 @@ void ATowerBase::InitTower(UTowerData* TowerData, bool bIsPreview)
 	{
 		MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 		MeshComponent->SetCastShadow(true);
-        
 		UpdateAttackTimer();
 	}
 }
 
 void ATowerBase::ReceiveBuffBroadcast(const FCardData& CardInfo)
 {
-	// 1. 전체 버프(Tower_All)인지 먼저 확인
 	bool bIsAllBuff = CardInfo.TowerTag.MatchesTagExact(FGridGameplayTags::Get().Tower_All);
-    
-	// 2. 내 가방(TowerTags) 안에 카드가 찾는 태그(CardInfo.TowerTag)가 들어있는지 확인
 	bool bHasMatchingTag = TowerTag.HasTagExact(CardInfo.TowerTag);
 
 	if (bIsAllBuff || bHasMatchingTag)
 	{
-		// 1. 데미지 추가
 		CurrentDamageMultiplier += CardInfo.DamageBuffAmount;
-		// 2. 공속 버프
+
 		if (CardInfo.AttackSpeedBuffAmount > 0.0f)
 		{
 			CurrentAttackSpeedMultiplier += CardInfo.AttackSpeedBuffAmount;
-			UpdateAttackTimer(); // 타이머 갱신 함수 호출
+			UpdateAttackTimer();
 		}
 
-		//3. 폭발 범위 증가
 		if (CardInfo.SplashRadiusBuffAmount > 0.0f)
 		{
 			CurrentSplashRadiusBonus += CardInfo.SplashRadiusBuffAmount;
-			
 		}
 
 		if (CardInfo.ChainCountBuffAmount)
@@ -116,8 +103,18 @@ void ATowerBase::BeginPlay()
 {
 	Super::BeginPlay();
 
+	// [수정] null 체크 추가
 	CachedPoolManager = Cast<APoolManager>(UGameplayStatics::GetActorOfClass(GetWorld(), APoolManager::StaticClass()));
+	if (!CachedPoolManager)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[%s] PoolManager를 찾을 수 없습니다."), *GetName());
+	}
+
 	CachedGridManager = Cast<AGridManager>(UGameplayStatics::GetActorOfClass(GetWorld(), AGridManager::StaticClass()));
+	if (!CachedGridManager)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[%s] GridManager를 찾을 수 없습니다."), *GetName());
+	}
 
 	if (AGridGameState* GS = GetWorld()->GetGameState<AGridGameState>())
 	{
@@ -125,7 +122,6 @@ void ATowerBase::BeginPlay()
 
 		for (const FCardData& PastCard : GS->AppliedBuff)
 		{
-			// 자기 자신의 수신기를 강제로 호출해서 과거 데이터를 다 먹습니다.
 			ReceiveBuffBroadcast(PastCard);
 		}
 	}
@@ -138,7 +134,6 @@ void ATowerBase::ApplyStun(float StunDuration)
 	if (!StateTag.HasTagExact(StunTag))
 	{
 		StateTag.AddTag(StunTag);
-        
 		if (StunWidget)
 		{
 			StunWidget->SetVisibility(true);
@@ -162,54 +157,52 @@ void ATowerBase::EndStun()
 
 void ATowerBase::FindTarget()
 {
-    if (!MyData || !CachedGridManager) return;
+	if (!MyData || !CachedGridManager) return;
     
-    if (CurrentTarget)
-    {
-        AEnemyBase* EnemyTarget = Cast<AEnemyBase>(CurrentTarget);
-        
-    	if (!EnemyTarget || EnemyTarget->IsDead() || FVector::Dist2D(GetActorLocation(), CurrentTarget->GetActorLocation()) > MyData->AttackRange)
-        {
-            CurrentTarget = nullptr;
-        }
-        else
-        {
-        	Fire();
-        	return;
-        }
-    }
+	if (CurrentTarget)
+	{
+		AEnemyBase* EnemyTarget = Cast<AEnemyBase>(CurrentTarget);
+		if (!EnemyTarget || EnemyTarget->IsDead() || FVector::Dist2D(GetActorLocation(), CurrentTarget->GetActorLocation()) > MyData->AttackRange)
+		{
+			CurrentTarget = nullptr;
+		}
+		else
+		{
+			Fire();
+			return;
+		}
+	}
 
-    //  새로운 타겟 탐색 
-    TArray<AActor*> OverlappedActors;
-    TArray<AActor*> ActorsToIgnore;
-    ActorsToIgnore.Add(this);
+	TArray<AActor*> OverlappedActors;
+	TArray<AActor*> ActorsToIgnore;
+	ActorsToIgnore.Add(this);
 
-    TArray<TEnumAsByte<EObjectTypeQuery>> ObjectTypes;
-    ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_Pawn));
+	TArray<TEnumAsByte<EObjectTypeQuery>> ObjectTypes;
+	ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_Pawn));
 
-    bool bHit = UKismetSystemLibrary::SphereOverlapActors(
-       this,
-       GetActorLocation(), 
-       MyData->AttackRange + 300.0f, 
-       ObjectTypes,
-       AEnemyBase::StaticClass(), 
-       ActorsToIgnore,
-       OverlappedActors
-    );
+	bool bHit = UKismetSystemLibrary::SphereOverlapActors(
+		this,
+		GetActorLocation(), 
+		MyData->AttackRange + 300.0f, 
+		ObjectTypes,
+		AEnemyBase::StaticClass(), 
+		ActorsToIgnore,
+		OverlappedActors
+	);
 
 	if (!bHit || OverlappedActors.Num() == 0) return;
 
 	AEnemyBase* BestTarget = nullptr;
-	int32 MinFlowCost = 999999;     // First 모드용
-	float MaxHP = -1.0f;           // Strong 모드용
-	float MinHP = 999999.f;
+	int32 MinFlowCost = INVALID_FLOW_COST;
+	float MaxHP = -1.0f;
+	float MinHP = TNumericLimits<float>::Max();
 
 	for (AActor* Actor : OverlappedActors)
 	{
 		AEnemyBase* Enemy = Cast<AEnemyBase>(Actor);
 		if (!Enemy || Enemy->IsDead()) continue;
 
-		switch (TargetPriority) // 헤더에 만든 Enum
+		switch (TargetPriority)
 		{
 		case ETargetPriority::First:
 			{
@@ -244,7 +237,6 @@ void ATowerBase::FindTarget()
 		}
 	}
 
-	// 4. 타겟 확정 및 발사
 	if (BestTarget)
 	{
 		CurrentTarget = BestTarget;
@@ -266,38 +258,34 @@ void ATowerBase::Fire()
 	FVector SpawnLocation = MeshComponent->GetSocketLocation(TEXT("Fire_Socket"));
 	FRotator SpawnRotation = MeshComponent->GetSocketRotation(TEXT("Fire_Socket"));
 
+	if (!CachedPoolManager) return;
+
 	AActor* PoolActor = CachedPoolManager->GetFromPool(ProjectileClass, SpawnLocation, SpawnRotation);
 	AProjectileBase* Projectile = Cast<AProjectileBase>(PoolActor);
-	if (Projectile)
+	if (!Projectile) return;
+
+	Projectile->SetOwner(this);
+	float FinalDamage = MyData->Damage * CurrentDamageMultiplier;
+
+	switch (MyData->TowerType)
 	{
-		Projectile->SetOwner(this);
-		float FinalDamage = MyData->Damage * CurrentDamageMultiplier;
+	case ETowerType::SingleTarget:
+		Projectile->SetDamage(FinalDamage); 
+		break;
 
-		switch (MyData->TowerType)
+	case ETowerType::AoE:
+		if (ASplashProjectile* SplashProj = Cast<ASplashProjectile>(Projectile))
 		{
-		case ETowerType::SingleTarget:
-			// 💡 MyData->Damage 대신 방금 계산한 FinalDamage를 줍니다.
-			Projectile->SetDamage(FinalDamage); 
-			break;
-
-		case ETowerType::AoE:
-			if (ASplashProjectile* SplashProj = Cast<ASplashProjectile>(Projectile))
-			{
-				// 💡 여기도 FinalDamage!
-				float FinalSplashRadius = MyData->SplashRadius + CurrentSplashRadiusBonus;
-             
-				// 💡 2. 대포알한테 더 커진 반경과 데미지를 넘겨줍니다!
-				SplashProj->InitSplash(FinalSplashRadius, FinalDamage);
-			}
-			break;
-
-		case ETowerType::Chain:
-			Projectile->SetDamage(FinalDamage); 
-			break;
+			float FinalSplashRadius = MyData->SplashRadius + CurrentSplashRadiusBonus;
+			SplashProj->InitSplash(FinalSplashRadius, FinalDamage);
 		}
+		break;
 
-		Projectile->FireAtTarget(CurrentTarget);
+	case ETowerType::Chain:
+		break;
 	}
+
+	Projectile->FireAtTarget(CurrentTarget);
 }
 
 void ATowerBase::UpdateAttackTimer()
@@ -308,6 +296,4 @@ void ATowerBase::UpdateAttackTimer()
 
 	GetWorldTimerManager().ClearTimer(AttackTimerHandle);
 	GetWorldTimerManager().SetTimer(AttackTimerHandle, this, &ATowerBase::FindTarget, FinalInterval, true);
-
-	UE_LOG(LogTemp, Warning, TEXT("[%s] 공속 업데이트! 새로운 발사 간격: %f초"), *GetName(), FinalInterval);	
 }

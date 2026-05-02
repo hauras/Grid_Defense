@@ -52,9 +52,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Game")
 	void GameClear();
 
-	UFUNCTION(BlueprintCallable, Category = "GameFlow")
+	UFUNCTION(BlueprintCallable, Category = "Game")
 	float CycleGameSpeed();
-	
+
+	UPROPERTY(BlueprintReadOnly, Category = "Game")
+	bool bIsGameOver = false;
+
+
 protected:
 	virtual void BeginPlay() override;
 

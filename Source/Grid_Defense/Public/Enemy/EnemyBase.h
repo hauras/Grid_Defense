@@ -6,6 +6,7 @@
 #include "GameplayTagContainer.h"    
 #include "EnemyBase.generated.h"
 
+class ANexus;
 class UDamageTextComponent;
 class AGridManager;
 class UWidgetComponent;
@@ -113,8 +114,7 @@ protected:
     float CurrentHP;
     float MaxHP;
     float BaseMoveSpeed;
-
-
+    
     UPROPERTY(Transient)
     TObjectPtr<AGridManager> CachedGridManager;
 
@@ -139,4 +139,10 @@ private:
     void RemoveSlow();
 
     FTimerHandle SlowTimerHandle;
+    FTimerHandle NexusAttackTimerHandle;
+
+    UFUNCTION()
+    void AttackNexus();
+
+    bool bIsAttackingNexus = false;
 };
