@@ -3,7 +3,8 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "Engine/DataTable.h" 
-#include "GameplayTagContainer.h"    
+#include "GameplayTagContainer.h"
+#include "Data/ElementalData.h"
 #include "EnemyBase.generated.h"
 
 class ANexus;
@@ -13,7 +14,6 @@ class UWidgetComponent;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnHPChangedDelegate, float, CurrentHP, float, MaxHP);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnEnemyDiedDelegate);
-
 
 USTRUCT(BlueprintType)
 struct FEnemyData : public FTableRowBase
@@ -30,15 +30,12 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat")
     float MoveSpeed = 800.f;
 
-    // 💡 추가 1: 돈 보상
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat")
     int32 GoldReward = 10;
 
-    // 💡 추가 2: 기지 공격력 (목숨 깎는 양)
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat")
     int32 LifeDamage = 1;
 
-    // 💡 추가 3: 타겟팅 중요도 (기본값 1, 보스는 5)
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat")
     float TargetingWeight = 1.0f;
     
@@ -65,8 +62,8 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Stat")
     int32 GetLifeDamage() const { return MyLifeDamage; }
 
-    // 🌟 [추가 2] 넥서스 골인 전용 함수 (돈 안 줌, 애니메이션 안 틈)
     void ReachNexus();
+
     UFUNCTION(BlueprintCallable, Category = "Status")
     bool IsDead() const { return bIsDead; }
 
@@ -105,8 +102,9 @@ protected:
     
     void Die(); 
     
+    // [수정] TObjectPtr로 변경
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Data", meta = (AllowPrivateAccess = "true"))
-    UDataTable* EnemyDataTable;
+    TObjectPtr<UDataTable> EnemyDataTable;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Data", meta = (AllowPrivateAccess = "true"))
     FName EnemyDataRowName;
@@ -134,6 +132,10 @@ protected:
 
     int32 MyGoldReward = 0;
     int32 MyLifeDamage = 1;
+
+    // 상성 DataTable
+    UPROPERTY(EditDefaultsOnly, Category = "Combat")
+    TObjectPtr<UDataTable> ElementalMatchupTable;
     
 private:
     void RemoveSlow();

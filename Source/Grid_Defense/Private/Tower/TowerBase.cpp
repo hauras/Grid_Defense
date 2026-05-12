@@ -103,7 +103,6 @@ void ATowerBase::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// [수정] null 체크 추가
 	CachedPoolManager = Cast<APoolManager>(UGameplayStatics::GetActorOfClass(GetWorld(), APoolManager::StaticClass()));
 	if (!CachedPoolManager)
 	{

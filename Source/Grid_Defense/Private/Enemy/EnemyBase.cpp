@@ -1,4 +1,3 @@
-
 #include "Enemy/EnemyBase.h"
 
 #include "AIController.h"
@@ -15,6 +14,7 @@
 #include "UI/DamageText/DamageTextComponent.h"
 #include "TimerManager.h"
 #include "Enemy/EnemySpawner.h"
+#include "Data/ElementalData.h"
 
 AEnemyBase::AEnemyBase()
 {
@@ -63,7 +63,6 @@ void AEnemyBase::BeginPlay()
 		if (HPWidget)
 		{
 			OnHPChanged.AddDynamic(HPWidget, &UEnemyHPWidget::OnHPChanged);
-            
 			HPWidget->UpdateHP(CurrentHP, MaxHP);
 		}
 	}
@@ -88,7 +87,6 @@ void AEnemyBase::Tick(float DeltaTime)
 	}
 }
 
-// 몬스터 스탯 적용
 void AEnemyBase::InitializeStats()
 {
 	if (EnemyDataTable && !EnemyDataRowName.IsNone())
@@ -100,14 +98,9 @@ void AEnemyBase::InitializeStats()
 			CurrentHP = MaxHP;
 			GetCharacterMovement()->MaxWalkSpeed = Data->MoveSpeed;
 			BaseMoveSpeed = Data->MoveSpeed; 
-          
 			MyGoldReward = Data->GoldReward;
-			// 🌟 [수정 1] 데이터 테이블에서 라이프 데미지 읽어서 변수에 저장!
 			MyLifeDamage = Data->LifeDamage; 
-          
 			this->EnemyTags = Data->EnemyTags;
-          
-			
 		}
 	}
 }
@@ -121,69 +114,65 @@ void AEnemyBase::SetPath(const TArray<FVector>& NewPath)
 float AEnemyBase::TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent,
                        class AController* EventInstigator, AActor* DamageCauser)
 {
-    if (bIsDead) return 0.f;
+	if (bIsDead) return 0.f;
 
-    const FGridGameplayTags& GridTags = FGridGameplayTags::Get();
-    FGameplayTag AttackTag = FGameplayTag::EmptyTag;
+	FGameplayTag AttackTag = FGameplayTag::EmptyTag;
 
-    if (AProjectileBase* Projectile = Cast<AProjectileBase>(DamageCauser))
-    {
-       AttackTag = Projectile->DamageTag;
-    }
-    else if (ATowerBase* Tower = Cast<ATowerBase>(DamageCauser))
-    {
-       AttackTag = Tower->TowerDamageTag;
-    }
+	if (AProjectileBase* Projectile = Cast<AProjectileBase>(DamageCauser))
+	{
+		AttackTag = Projectile->DamageTag;
+	}
+	else if (ATowerBase* Tower = Cast<ATowerBase>(DamageCauser))
+	{
+		AttackTag = Tower->TowerDamageTag;
+	}
 
-    // ==========================================
-    // 🌟 [수정된 부분] 상성에 따른 데미지 배율 및 색상 결정
-    // ==========================================
-    float DamageMultiplier = 1.0f;
-    FLinearColor TextColor = FLinearColor::White; // 기본 색상 (비상성)
+	float DamageMultiplier = 1.0f;
+	FLinearColor TextColor = FLinearColor::White;
 
-    if (AttackTag.IsValid())
-    {
-       // 🔥 자연 속성 몬스터가 불 공격을 받았을 때 (1.5배)
-       if (EnemyTags.HasTagExact(GridTags.Enemy_Nature) && AttackTag.MatchesTagExact(GridTags.Damage_Fire))
-       {
-          DamageMultiplier = 1.5f;
-          TextColor = FLinearColor::Red; // 불 약점: 빨간색
-       }
-       // ⚡ 물 속성 몬스터가 전기 공격(라이트닝 타워)을 받았을 때 (2.0배)
-       else if (EnemyTags.HasTagExact(GridTags.Enemy_Water) && AttackTag.MatchesTagExact(GridTags.Damage_Lightning))
-       {
-          DamageMultiplier = 2.0f;
-          TextColor = FLinearColor::Yellow; // 전기 약점: 노란색
-       }
-    }
+	// [수정] 하드코딩 제거 → ElementalMatchupTable 참조
+	if (AttackTag.IsValid() && ElementalMatchupTable)
+	{
+		TArray<FElementalMatchup*> AllRows;
+		ElementalMatchupTable->GetAllRows<FElementalMatchup>(TEXT(""), AllRows);
 
-    // 공격 반감(역상성)이 있다면 회색으로 처리
-    if (DamageMultiplier < 1.0f)
-    {
-        TextColor = FLinearColor::Gray; 
-    }
+		for (FElementalMatchup* Row : AllRows)
+		{
+			if (Row->AttackTag == AttackTag && EnemyTags.HasTagExact(Row->EnemyTag))
+			{
+				DamageMultiplier = Row->DamageMultiplier;
+				TextColor = Row->TextColor;
+				break;
+			}
+		}
+	}
 
-    float FinalDamage = DamageAmount * DamageMultiplier;
-    
-    AccumulatedDamage += FinalDamage;
+	// 역상성이면 회색
+	if (DamageMultiplier < 1.0f)
+	{
+		TextColor = FLinearColor::Gray;
+	}
 
-    if (DamageTextComp)
-    {
-        DamageTextComp->SetDamageText(AccumulatedDamage, TextColor);
-    }
+	float FinalDamage = DamageAmount * DamageMultiplier;
+	AccumulatedDamage += FinalDamage;
 
-    GetWorldTimerManager().ClearTimer(DamageTextTimerHandle);
-    GetWorldTimerManager().SetTimer(DamageTextTimerHandle, this, &AEnemyBase::ResetDamageText, 1.5f, false);
+	if (DamageTextComp)
+	{
+		DamageTextComp->SetDamageText(AccumulatedDamage, TextColor);
+	}
+
+	GetWorldTimerManager().ClearTimer(DamageTextTimerHandle);
+	GetWorldTimerManager().SetTimer(DamageTextTimerHandle, this, &AEnemyBase::ResetDamageText, 1.5f, false);
 	
-    CurrentHP -= FinalDamage;
+	CurrentHP -= FinalDamage;
+	OnHPChanged.Broadcast(CurrentHP, MaxHP);
 
-    OnHPChanged.Broadcast(CurrentHP, MaxHP);
-    if (CurrentHP <= 0.f)
-    {
-       Die();
-    }
+	if (CurrentHP <= 0.f)
+	{
+		Die();
+	}
 
-    return FinalDamage;
+	return FinalDamage;
 }
 
 void AEnemyBase::Die()
@@ -233,7 +222,6 @@ void AEnemyBase::ApplySlow(float SlowDuration)
 		GameplayTags.AddTag(FGridGameplayTags::Get().State_Slow);
 		GetCharacterMovement()->MaxWalkSpeed = BaseMoveSpeed * 0.5f;
 
-		// 슬로우 아이콘 표시
 		if (UEnemyHPWidget* HPWidget = Cast<UEnemyHPWidget>(HPBarWidget->GetUserWidgetObject()))
 		{
 			HPWidget->SetSlowVisible(true);
@@ -247,7 +235,6 @@ void AEnemyBase::RemoveSlow()
 	GameplayTags.RemoveTag(FGridGameplayTags::Get().State_Slow);
 	GetCharacterMovement()->MaxWalkSpeed = BaseMoveSpeed;
 
-	// 슬로우 아이콘 숨김
 	if (UEnemyHPWidget* HPWidget = Cast<UEnemyHPWidget>(HPBarWidget->GetUserWidgetObject()))
 	{
 		HPWidget->SetSlowVisible(false);
@@ -261,10 +248,6 @@ void AEnemyBase::AttackNexus()
 	if (AGridGameMode* GM = Cast<AGridGameMode>(UGameplayStatics::GetGameMode(GetWorld())))
 	{
 		GM->DecreaseLife(MyLifeDamage);
-        
-
-		// (선택) 여기에 몬스터 공격 애니메이션 몽타주가 있다면 재생
-		// if (AttackMontage) PlayAnimMontage(AttackMontage);
 	}
 }
 
@@ -273,14 +256,7 @@ void AEnemyBase::ReachNexus()
 	if (bIsDead || bIsAttackingNexus) return;
     
 	bIsAttackingNexus = true;
-    
 	GetCharacterMovement()->StopMovementImmediately();
-
 	AttackNexus();
-
 	GetWorldTimerManager().SetTimer(NexusAttackTimerHandle, this, &AEnemyBase::AttackNexus, 1.0f, true);
-    
 }
-
-
-
